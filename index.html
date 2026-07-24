@@ -1,0 +1,3001 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mdGanttViewer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel-bg: #ffffff;
+    --border: #d7dbe0;
+    --text: #1f2430;
+    --text-dim: #6b7280;
+    --accent: #2f6feb;
+    --accent-dim: #eaf1ff;
+    --danger: #d1453b;
+    --danger-dim: #fdeceb;
+    --ok: #1f8a4c;
+  }
+  [data-theme="dark"] {
+    --bg: #0f172a;
+    --panel-bg: #1a2436;
+    --border: #313f57;
+    --text: #e5e9f0;
+    --text-dim: #94a3b8;
+    --accent: #6d8bf5;
+    --accent-dim: #223055;
+    --danger: #f87171;
+    --danger-dim: #3a1f22;
+    --ok: #34d399;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+  body.resizing { cursor: col-resize !important; user-select: none; }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 15px;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 10px;
+    border-left: 1px solid var(--border);
+    flex-wrap: wrap;
+    position: relative;
+  }
+  .group:first-of-type { border-left: none; padding-left: 0; }
+  .spacer { flex: 1; }
+  button, select, input[type=text] {
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-bg);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--accent-dim); border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { opacity: .9; }
+  button.danger-btn { background: var(--danger); color: #fff; border-color: var(--danger); }
+  button.danger-btn:hover { opacity: .9; }
+  button.icon-only { padding: 5px 8px; }
+  select { cursor: pointer; }
+  input[type=text] { cursor: text; }
+  .breadcrumb {
+    padding: 6px 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .breadcrumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  aside.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 10px;
+  }
+  aside.sidebar h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-dim);
+    margin: 14px 0 6px;
+  }
+  aside.sidebar h2:first-child { margin-top: 0; }
+  ul.nav-list { list-style: none; margin: 0; padding: 0; }
+  ul.nav-list li {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  ul.nav-list li:hover { background: var(--accent-dim); }
+  ul.nav-list li.active { background: var(--accent); color: #fff; }
+  ul.nav-list li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.nav-list li .icon-btn {
+    opacity: 0;
+    border: none;
+    background: transparent;
+    padding: 2px 4px;
+    font-size: 12px;
+    border-radius: 4px;
+    color: inherit;
+  }
+  ul.nav-list li:hover .icon-btn { opacity: .8; }
+  ul.nav-list li .icon-btn:hover { opacity: 1; background: rgba(0,0,0,.08); }
+  ul.nav-list li.active .icon-btn:hover { background: rgba(255,255,255,.25); }
+  .link-badge { font-size: 11px; opacity: .75; }
+  .add-btn {
+    width: 100%;
+    text-align: left;
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-dim);
+    border-style: dashed;
+  }
+  .panes {
+    flex: 1;
+    display: flex;
+    min-width: 0;
+  }
+  #editorPane { flex: 0 0 50%; display: flex; flex-direction: column; min-width: 0; }
+  #previewPane { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  #resizer {
+    flex: 0 0 6px;
+    background: var(--border);
+    cursor: col-resize;
+    transition: background-color .12s ease;
+  }
+  #resizer:hover, #resizer.dragging { background: var(--accent); }
+  .pane-header {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    background: var(--panel-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  #editorPane .pane-header { border-left: none; }
+  .pane-header-actions { display: flex; align-items: center; gap: 8px; }
+  .tbtn-mini {
+    padding: 2px 7px;
+    font-size: 12px;
+    border-radius: 5px;
+  }
+  .status-indicator { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .status-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; background: var(--ok); }
+  @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  .status-dot.saving { background: #f59e0b; animation: pulseDot .9s infinite; }
+  .status-dot.saved { background: var(--ok); }
+  .status-dot.error { background: var(--danger); }
+  .CodeMirror {
+    height: 100%;
+    background: var(--panel-bg);
+    color: var(--text);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    flex: 1;
+  }
+  .CodeMirror-gutters { background: var(--panel-bg); border-right: 1px solid var(--border); }
+  .CodeMirror-linenumber { color: var(--text-dim); }
+  .cm-keyword { color: #7c6fe0; font-weight: 700; }
+  .cm-atom { color: #b45309; font-weight: 600; }
+  [data-theme="dark"] .cm-atom { color: #fbbf24; }
+  .cm-string { color: #0e8a6d; }
+  [data-theme="dark"] .cm-string { color: #34d399; }
+  .cm-number { color: #0369a1; }
+  [data-theme="dark"] .cm-number { color: #38bdf8; }
+  .cm-comment { color: var(--text-dim); font-style: italic; }
+  .cm-error-line { background: var(--danger-dim) !important; }
+  #error-box {
+    padding: 8px 12px;
+    background: var(--danger-dim);
+    color: var(--danger);
+    font-size: 12px;
+    font-family: monospace;
+    border-top: 1px solid var(--border);
+    white-space: pre-wrap;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  #error-box.hidden { display: none; }
+  #preview-wrap {
+    flex: 1;
+    overflow: auto;
+    background: var(--panel-bg);
+    padding: 16px;
+    cursor: grab;
+  }
+  #preview-wrap.panning { cursor: grabbing; }
+  #preview { display: inline-block; }
+  #preview svg { max-width: none; }
+  #preview text.linked-section { cursor: pointer; }
+  #preview text.linked-section:hover { text-decoration: underline; }
+  @keyframes cellPulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 6px var(--accent)); } }
+  .cell-pulse { animation: cellPulse .7s ease-in-out 3; }
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  /* modals */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--panel-bg);
+    border-radius: 10px;
+    padding: 18px 20px;
+    width: min(420px, 90vw);
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+  }
+  .modal.wide { width: min(560px, 90vw); }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; }
+  .modal p.hint { color: var(--text-dim); font-size: 12px; margin: 0 0 14px; }
+  .modal input[type=text] { width: 100%; margin-bottom: 4px; }
+  table.links-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.links-table th, table.links-table td {
+    text-align: left;
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.links-table select { width: 100%; }
+  .modal-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
+  .hidden-input { display: none; }
+  .hidden { display: none !important; }
+  /* search */
+  .search-wrap { position: relative; }
+  #searchResults {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    width: 300px;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    z-index: 40;
+  }
+  #searchResults .search-item {
+    padding: 7px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  #searchResults .search-item:last-child { border-bottom: none; }
+  #searchResults .search-item:hover { background: var(--accent-dim); }
+  #searchResults .search-item .view-name { color: var(--text-dim); font-size: 11px; display: block; }
+  #searchResults .search-empty { padding: 10px; font-size: 12px; color: var(--text-dim); }
+  footer {
+    padding: 4px 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+    background: var(--panel-bg);
+    border-top: 1px solid var(--border);
+  }
+  /* task edit modal fields */
+  .field-row { margin-bottom: 10px; }
+  .field-row label { font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px; }
+  .field-row input[type=text] { width: 100%; }
+  .flags-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+  .flags-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text); }
+  /* mobile tabbar */
+  .mobile-tabbar { display: none; background: var(--panel-bg); border-bottom: 1px solid var(--border); }
+  .mobile-tab {
+    flex: 1;
+    padding: 8px 0;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .mobile-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  /* ------------------------------------------------------------------ */
+  /* Vista interactiva (Frappe Gantt): tabla de tareas + barras editables */
+  /* Las constantes de alineación (59px de cabecera, 38px por fila) salen */
+  /* de las opciones que pasamos a Frappe: header_height 50, padding 18,  */
+  /* bar_height 20 → primera banda en 50+18/2=59, paso 20+18=38.          */
+  /* ------------------------------------------------------------------ */
+  /* El wrap es el ÚNICO scroller vertical: tabla y chart crecen juntos con
+     el contenido y se desplazan a la vez, sin sincronización por JS. El
+     scroll horizontal del chart vive dentro de .gantt-container. */
+  #interactiveWrap { flex: 1; display: flex; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--panel-bg); }
+  #ganttTasklist {
+    width: 230px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .gtl-header {
+    height: 59px;
+    display: flex;
+    align-items: flex-end;
+    padding: 0 10px 8px;
+    font-weight: 600;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: var(--panel-bg);
+  }
+  .gtl-row {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .gtl-row:hover { background: var(--accent-dim); }
+  .gtl-row.section { font-weight: 700; background: rgba(0,0,0,.04); }
+  .gtl-row.section:hover { background: var(--accent-dim); }
+  [data-theme="dark"] .gtl-row.section { background: rgba(255,255,255,.05); }
+  .gtl-chevron { width: 14px; text-align: center; flex-shrink: 0; font-size: 9px; color: var(--text-dim); }
+  .gtl-count { font-size: 11px; font-weight: 400; color: var(--text-dim); flex-shrink: 0; }
+  .gtl-info { font-size: 11px; font-weight: 400; color: var(--text-dim); flex-shrink: 0; }
+  .gtl-info .crit { color: var(--danger); font-weight: 700; }
+  .gtl-row.invalid { opacity: .55; }
+  .gtl-row .gtl-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gtl-row.task .gtl-name { padding-left: 12px; }
+  .gtl-dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--border); flex-shrink: 0; }
+  .gtl-dot.done { background: var(--ok); }
+  .gtl-dot.active { background: var(--accent); }
+  .gtl-dot.crit { background: var(--danger); }
+  .gtl-dot.milestone { background: #a855f7; }
+  .gtl-link-btn { border: none; background: transparent; font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+  .gtl-link-btn:hover { background: rgba(0,0,0,.08); }
+  @keyframes rowFlash { 50% { background: var(--accent-dim); } }
+  .gtl-row.flash { animation: rowFlash .7s ease-in-out 3; }
+  #ganttChart { flex: 1; min-width: 0; position: relative; }
+  #ganttChart .gantt-container { height: auto; overflow-x: auto; overflow-y: hidden; }
+  #ganttChart .popup-wrapper { display: none !important; }
+  /* Cabecera de fechas fija: clon del header del SVG que se pega arriba del
+     scroller vertical y se desplaza en X junto con el chart. La altura 60px
+     coincide con el rect .grid-header de Frappe (header_height 50 + 10). */
+  #ganttStickyHeader {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    height: 60px;
+    margin-bottom: -60px;
+    overflow: hidden;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    pointer-events: none;
+  }
+  #ganttStickyHeader svg { display: block; }
+  .interactive-msg { padding: 24px; color: var(--text-dim); font-size: 13px; }
+  /* Tematización de Frappe Gantt con las variables de la app */
+  #ganttChart .gantt .grid-background { fill: transparent; }
+  #ganttChart .gantt .grid-header { fill: var(--panel-bg); }
+  #ganttChart .gantt .grid-row { fill: var(--panel-bg); }
+  #ganttChart .gantt .grid-row:nth-child(even) { fill: var(--bg); }
+  #ganttChart .gantt .row-line, #ganttChart .gantt .tick { stroke: var(--border); }
+  #ganttChart .gantt .upper-text, #ganttChart .gantt .lower-text { fill: var(--text-dim); }
+  #ganttChart .gantt .today-highlight { fill: var(--accent-dim); opacity: .55; }
+  #ganttChart .gantt .arrow { stroke: var(--text-dim); }
+  #ganttChart .gantt .bar { fill: #94a7c4; stroke: none; }
+  #ganttChart .gantt .bar-wrapper:hover .bar { fill: #7e93b5; }
+  #ganttChart .gantt .bar-progress { fill: var(--accent); }
+  #ganttChart .gantt .bar-label { fill: #fff; }
+  #ganttChart .gantt .bar-label.big { fill: var(--text); }
+  #ganttChart .gantt .bar-wrapper.gantt-row-static { pointer-events: none; }
+  /* fill-opacity (y no opacity) para que el trazo rojo de "contiene tareas
+     críticas" no quede también atenuado */
+  #ganttChart .gantt .bar-wrapper.gantt-row-section .bar { fill: var(--text-dim); fill-opacity: .35; }
+  #ganttChart .gantt .bar-wrapper.gantt-row-collapsed .bar-progress { fill: var(--accent); }
+  #ganttChart .gantt .bar-wrapper.gantt-row-has-crit .bar { stroke: var(--danger); stroke-width: 1.5; }
+  #ganttChart .gantt .bar-wrapper.gantt-row-invalid .bar { fill: var(--border); }
+  #ganttChart .gantt .bar-wrapper.gantt-row-done .bar { fill: var(--ok); opacity: .5; }
+  #ganttChart .gantt .bar-wrapper.gantt-row-done .bar-progress { fill: var(--ok); }
+  #ganttChart .gantt .bar-wrapper.gantt-row-crit .bar { fill: var(--danger); }
+  #ganttChart .gantt .bar-wrapper.gantt-row-crit .bar-progress { fill: #a1332b; }
+  #ganttChart .gantt .bar-wrapper.gantt-row-milestone .bar { fill: #a855f7; rx: 10; ry: 10; }
+  /* Toggle segmentado Interactiva/Mermaid */
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: none; border-radius: 0; padding: 3px 9px; font-size: 12px; background: transparent; }
+  .seg button.active { background: var(--accent); color: #fff; }
+  #ganttViewModeSel { padding: 2px 6px; font-size: 12px; }
+  .chk-mini { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim); cursor: pointer; white-space: nowrap; user-select: none; }
+  .chk-mini input { cursor: pointer; }
+  /* Toasts (avisos con Deshacer) */
+  #toastContainer { position: fixed; right: 16px; bottom: 42px; display: flex; flex-direction: column; gap: 8px; z-index: 80; }
+  @keyframes toastIn { from { transform: translateY(8px); opacity: 0; } }
+  .toast {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 12.5px;
+    color: var(--text);
+    box-shadow: 0 6px 20px rgba(0,0,0,.18);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 360px;
+    animation: toastIn .18s ease-out;
+  }
+  .toast button { padding: 3px 8px; font-size: 12px; flex-shrink: 0; }
+  /* Flash de la línea recién modificada en el editor de texto */
+  .cm-flash-line { background: var(--accent-dim) !important; }
+  @media (max-width: 767px) {
+    .mobile-tabbar { display: flex; }
+    header { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 10px; }
+    header > * { flex-shrink: 0; }
+    header .group { flex-wrap: nowrap; }
+    button, select { padding: 7px 11px; }
+    .main { flex-direction: column; }
+    aside.sidebar {
+      width: 100%;
+      max-height: 140px;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .panes { flex-direction: column; }
+    #resizer { display: none; }
+    #editorPane, #previewPane { flex: 1 1 auto !important; width: 100%; min-height: 0; }
+    body.mobile-editor #previewPane { display: none; }
+    body.mobile-preview #editorPane { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>mdGanttViewer</h1>
+  <div class="group">
+    <select id="projectSelect" title="Proyecto activo"></select>
+    <button id="btnNewProject" title="Nuevo proyecto">+ Proyecto</button>
+    <button id="btnRenameProject" title="Renombrar proyecto">✎</button>
+    <button id="btnDuplicateProject" class="icon-only" title="Duplicar proyecto completo">⎘</button>
+    <button id="btnDeleteProject" class="icon-only" title="Eliminar proyecto">🗑</button>
+  </div>
+  <div class="group search-wrap">
+    <input type="text" id="searchInput" placeholder="🔍 Buscar tarea..." autocomplete="off">
+    <div id="searchResults" class="hidden"></div>
+  </div>
+  <div class="group">
+    <button id="btnLinks" title="Vincular tareas/secciones del gantt general a subproyectos">🔗 Vincular</button>
+  </div>
+  <div class="group">
+    <button id="btnImportMd" title="Importar un diagrama .md individual">Importar .md</button>
+    <button id="btnImportFull" title="Importar un archivo .md con varios diagramas (como gantt.md)">Importar proyecto (.md)</button>
+    <button id="btnExportMd" title="Exportar el diagrama activo a .md">Exportar .md</button>
+  </div>
+  <div class="group">
+    <button id="btnExportBackup" title="Exportar todos los proyectos (localStorage) a .json">Exportar backup</button>
+    <button id="btnImportBackup" title="Importar un backup .json (reemplaza todo)">Importar backup</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="group">
+    <button id="btnTheme" class="icon-only" title="Cambiar tema claro/oscuro">🌙</button>
+  </div>
+  <input type="file" id="fileImportMd" class="hidden-input" accept=".md,text/markdown">
+  <input type="file" id="fileImportFull" class="hidden-input" accept=".md,text/markdown">
+  <input type="file" id="fileImportBackup" class="hidden-input" accept=".json,application/json">
+</header>
+
+<div class="breadcrumb" id="breadcrumb"></div>
+
+<div class="mobile-tabbar" id="mobileTabbar">
+  <button class="mobile-tab" data-mtab="editor">📝 Editor</button>
+  <button class="mobile-tab active" data-mtab="preview">📊 Vista previa</button>
+</div>
+
+<div class="main">
+  <aside class="sidebar" id="sidebar">
+    <h2>Vista</h2>
+    <ul class="nav-list" id="viewList"></ul>
+    <h2>Subproyectos</h2>
+    <ul class="nav-list" id="subprojectList"></ul>
+    <button class="add-btn" id="btnNewSubproject">+ Nuevo subproyecto</button>
+  </aside>
+
+  <div class="panes" id="panes">
+    <section id="editorPane">
+      <div class="pane-header">
+        <span id="editorLabel">Editor (Mermaid)</span>
+        <div class="pane-header-actions">
+          <span class="status-indicator"><span class="status-dot saved" id="statusDot"></span><span id="statusText">Guardado</span></span>
+          <button id="btnDuplicateSubproject" class="tbtn-mini" title="Duplicar este subproyecto">⎘ Duplicar</button>
+        </div>
+      </div>
+      <textarea id="editor" spellcheck="false" placeholder="Escribe o pega aquí tu diagrama Mermaid (gantt ...)"></textarea>
+      <div id="error-box" class="hidden"></div>
+    </section>
+    <div id="resizer" title="Arrastra para redimensionar"></div>
+    <section id="previewPane">
+      <div class="pane-header">
+        <span>Vista previa</span>
+        <div class="pane-header-actions">
+          <span id="interactiveControls" class="pane-header-actions">
+            <label class="chk-mini" title="Colapsar todas las secciones a una fila de resumen (también puedes colapsar cada sección con su flecha ▶ en la tabla)"><input type="checkbox" id="chkGroupSections"> Agrupar secciones</label>
+            <select id="ganttViewModeSel" title="Escala de tiempo">
+              <option value="Day">Día</option>
+              <option value="Week">Semana</option>
+              <option value="Month">Mes</option>
+            </select>
+            <button id="btnAddTask" class="tbtn-mini" title="Añadir una tarea nueva al final del diagrama">＋ Tarea</button>
+          </span>
+          <span id="mermaidControls" class="pane-header-actions">
+            <button id="btnZoomOut" class="tbtn-mini" title="Alejar (Ctrl+rueda)">－</button>
+            <span id="zoomLabel">100%</span>
+            <button id="btnZoomIn" class="tbtn-mini" title="Acercar (Ctrl+rueda)">＋</button>
+            <button id="btnZoomFit" class="tbtn-mini" title="Restablecer zoom">⤢</button>
+          </span>
+          <div class="seg" id="previewModeSeg">
+            <button id="modeBtnInteractive" title="Editor visual: arrastra las barras para mover tareas, estira los bordes para cambiar la duración, clic para editar">🖱 Interactiva</button>
+            <button id="modeBtnMermaid" title="Renderizado Mermaid clásico (solo lectura, doble clic para editar)">📄 Mermaid</button>
+          </div>
+        </div>
+      </div>
+      <div id="preview-wrap"><div id="preview"></div></div>
+      <div id="interactiveWrap" class="hidden">
+        <div id="ganttTasklist"><div id="ganttTasklistInner"></div></div>
+        <div id="ganttChart"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="empty-state hidden" id="emptyState">
+    <p>No hay proyectos todavía.</p>
+    <button class="primary" id="btnEmptyCreate">Crear primer proyecto</button>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<footer>Todo se guarda localmente en tu navegador (localStorage). Nada se envía a ningún servidor. Vista interactiva: arrastra una barra para moverla, estira sus bordes para cambiar la duración, clic para editar. Atajos: <kbd>Ctrl+S</kbd> guardar, <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Shift+Z</kbd> deshacer/rehacer en el editor, <kbd>Esc</kbd> cerrar diálogos.</footer>
+
+<!-- Modal genérico (prompt/confirm/alert) -->
+<div class="modal-overlay hidden" id="genModalOverlay">
+  <div class="modal">
+    <h3 id="genModalTitle">Título</h3>
+    <p id="genModalMessage" class="hint hidden"></p>
+    <input type="text" id="genModalInput" class="hidden">
+    <div class="modal-actions">
+      <button id="genModalCancel">Cancelar</button>
+      <button id="genModalConfirm" class="primary">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de vinculación -->
+<div class="modal-overlay hidden" id="linksModalOverlay">
+  <div class="modal wide">
+    <h3>Vincular tareas / secciones a subproyectos</h3>
+    <p class="hint">Al hacer clic en una tarea o sección del gantt general que esté vinculada, se abrirá el subproyecto de detalle correspondiente.</p>
+    <table class="links-table" id="linksTable">
+      <thead>
+        <tr><th>Elemento</th><th>Tipo</th><th>Subproyecto vinculado</th></tr>
+      </thead>
+      <tbody id="linksTableBody"></tbody>
+    </table>
+    <div class="modal-actions">
+      <button id="btnCloseLinks" class="primary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de edición de tarea (doble clic sobre una barra de la vista previa) -->
+<div class="modal-overlay hidden" id="taskModalOverlay">
+  <div class="modal">
+    <h3>Editar tarea</h3>
+    <p class="hint">Los cambios reescriben la línea correspondiente del texto Mermaid.</p>
+    <div class="field-row"><label for="taskEditLabel">Nombre</label><input type="text" id="taskEditLabel"></div>
+    <div class="field-row"><label for="taskEditId">Id (opcional, usado por "after" y los vínculos)</label><input type="text" id="taskEditId"></div>
+    <div class="field-row"><label for="taskEditStart">Inicio (fecha YYYY-MM-DD o "after otraTareaId")</label><input type="text" id="taskEditStart"></div>
+    <div class="field-row"><label for="taskEditEnd">Fin o duración (fecha o ej. "5d")</label><input type="text" id="taskEditEnd"></div>
+    <div class="field-row">
+      <label>Estado</label>
+      <div class="flags-row">
+        <label><input type="checkbox" id="taskFlag-done"> done</label>
+        <label><input type="checkbox" id="taskFlag-active"> active</label>
+        <label><input type="checkbox" id="taskFlag-crit"> crit</label>
+        <label><input type="checkbox" id="taskFlag-milestone"> milestone</label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="taskEditCancel">Cancelar</button>
+      <button id="taskEditSave" class="primary">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  window.addEventListener("error", function (evt) {
+    console.error("[mdGanttViewer] Error no capturado:", evt.message, evt.error && evt.error.stack);
+  });
+
+  // ---------------------------------------------------------------------
+  // Modal genérico (reemplaza prompt/confirm/alert nativos)
+  // ---------------------------------------------------------------------
+  const genModalOverlay = document.getElementById("genModalOverlay");
+  const genModalTitle = document.getElementById("genModalTitle");
+  const genModalMessage = document.getElementById("genModalMessage");
+  const genModalInput = document.getElementById("genModalInput");
+  const genModalConfirm = document.getElementById("genModalConfirm");
+  const genModalCancel = document.getElementById("genModalCancel");
+
+  function showModal(opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      genModalTitle.textContent = opts.title || "";
+      if (opts.message) {
+        genModalMessage.textContent = opts.message;
+        genModalMessage.classList.remove("hidden");
+      } else {
+        genModalMessage.classList.add("hidden");
+      }
+      if (opts.withInput) {
+        genModalInput.classList.remove("hidden");
+        genModalInput.value = opts.defaultValue || "";
+      } else {
+        genModalInput.classList.add("hidden");
+      }
+      genModalConfirm.textContent = opts.confirmText || "Aceptar";
+      genModalConfirm.className = opts.danger ? "danger-btn" : "primary";
+      genModalCancel.classList.toggle("hidden", !!opts.hideCancel);
+      genModalOverlay.classList.remove("hidden");
+      if (opts.withInput) {
+        setTimeout(function () { genModalInput.focus(); genModalInput.select(); }, 30);
+      } else {
+        setTimeout(function () { genModalConfirm.focus(); }, 30);
+      }
+
+      function cleanup(result) {
+        genModalOverlay.classList.add("hidden");
+        genModalConfirm.removeEventListener("click", onConfirm);
+        genModalCancel.removeEventListener("click", onCancel);
+        genModalInput.removeEventListener("keydown", onKeydown);
+        resolve(result);
+      }
+      function onConfirm() { cleanup(opts.withInput ? genModalInput.value : true); }
+      function onCancel() { cleanup(opts.withInput ? null : false); }
+      function onKeydown(evt) {
+        if (evt.key === "Enter") { evt.preventDefault(); onConfirm(); }
+      }
+      genModalConfirm.addEventListener("click", onConfirm);
+      genModalCancel.addEventListener("click", onCancel);
+      genModalInput.addEventListener("keydown", onKeydown);
+    });
+  }
+
+  function showPrompt(title, defaultValue) {
+    return showModal({ title: title, withInput: true, defaultValue: defaultValue || "" });
+  }
+  function showConfirm(title, message) {
+    return showModal({ title: title, message: message, danger: true, confirmText: "Eliminar" });
+  }
+  function showAlert(title, message) {
+    return showModal({ title: title, message: message, hideCancel: true, confirmText: "Entendido" });
+  }
+
+  // ---------------------------------------------------------------------
+  // Mermaid setup
+  // ---------------------------------------------------------------------
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+  function mermaidInit() {
+    mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: currentTheme() === "dark" ? "dark" : "default" });
+  }
+  mermaidInit();
+
+  // ---------------------------------------------------------------------
+  // State / storage
+  // ---------------------------------------------------------------------
+  const STORAGE_KEY = "mdGanttViewer.state.v1";
+  const THEME_KEY = "mdGanttViewer.theme";
+  const WIDTH_KEY = "mdGanttViewer.editorWidthPct";
+
+  function uid() {
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function createEmptyState() {
+    return { activeProjectId: null, projects: {} };
+  }
+
+  function defaultGeneralTemplate(title) {
+    return [
+      "gantt",
+      "    title " + title,
+      "    dateFormat YYYY-MM-DD",
+      "    section Sección 1",
+      "    Tarea 1 :task1, 2026-01-01, 5d"
+    ].join("\n");
+  }
+
+  function defaultSubprojectTemplate(title) {
+    return [
+      "gantt",
+      "    title " + title,
+      "    dateFormat YYYY-MM-DD",
+      "    section Detalle",
+      "    Subtarea 1 :sub1, 2026-01-01, 3d"
+    ].join("\n");
+  }
+
+  function seedSampleProject(state) {
+    const projectId = uid();
+    const backendId = uid();
+    state.projects[projectId] = {
+      id: projectId,
+      name: "Ejemplo",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      general: {
+        content: [
+          "gantt",
+          "    title Proyecto de Ejemplo",
+          "    dateFormat YYYY-MM-DD",
+          "    section Planificación",
+          "    Definir alcance :done, def, 2026-01-01, 3d",
+          "    section Desarrollo",
+          "    Backend :active, be, after def, 10d",
+          "    Frontend :fe, after def, 8d",
+          "    section Lanzamiento",
+          "    Despliegue :crit, dep, after be, 3d"
+        ].join("\n"),
+        links: { "be": backendId, "section::Lanzamiento": backendId }
+      },
+      subprojects: {
+        [backendId]: {
+          id: backendId,
+          name: "Backend",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          content: [
+            "gantt",
+            "    title Detalle — Backend",
+            "    dateFormat YYYY-MM-DD",
+            "    section API",
+            "    Diseño de endpoints :done, api1, 2026-01-04, 2d",
+            "    Implementación :active, api2, after api1, 6d",
+            "    section Base de datos",
+            "    Modelo de datos :db1, 2026-01-04, 3d",
+            "    Migraciones :db2, after db1, 2d"
+          ].join("\n")
+        }
+      }
+    };
+    state.activeProjectId = projectId;
+    return state;
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return seedSampleProject(createEmptyState());
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || !parsed.projects) {
+        return seedSampleProject(createEmptyState());
+      }
+      return parsed;
+    } catch (e) {
+      console.error("No se pudo leer el estado guardado:", e);
+      return seedSampleProject(createEmptyState());
+    }
+  }
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  let state = loadState();
+
+  // Transient (not persisted) view state: which subproject (or null = general) is open per project.
+  const viewState = {}; // { [projectId]: subprojectId|null }
+
+  function getActiveProject() {
+    if (!state.activeProjectId) return null;
+    return state.projects[state.activeProjectId] || null;
+  }
+
+  function getCurrentSubprojectId() {
+    if (!state.activeProjectId) return null;
+    return viewState[state.activeProjectId] || null;
+  }
+
+  function setCurrentSubprojectId(subId) {
+    if (!state.activeProjectId) return;
+    viewState[state.activeProjectId] = subId || null;
+  }
+
+  // ---------------------------------------------------------------------
+  // Save status indicator
+  // ---------------------------------------------------------------------
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+  function markSaving() {
+    statusDot.className = "status-dot saving";
+    statusText.textContent = "Guardando…";
+  }
+  function markSaved() {
+    statusDot.className = "status-dot saved";
+    statusText.textContent = "Guardado";
+  }
+  function markStatusError() {
+    statusDot.className = "status-dot error";
+    statusText.textContent = "Error de sintaxis";
+  }
+
+  // ---------------------------------------------------------------------
+  // Gantt text parsing helpers
+  // ---------------------------------------------------------------------
+  const STATUS_KEYWORDS = new Set(["done", "active", "crit", "milestone"]);
+
+  function extractGanttItems(text) {
+    const lines = (text || "").split("\n");
+    const sections = [];
+    const tasks = [];
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const sectionMatch = line.match(/^section\s+(.+)$/i);
+      if (sectionMatch) {
+        sections.push(sectionMatch[1].trim());
+        continue;
+      }
+      const colonIdx = line.indexOf(":");
+      if (colonIdx === -1) continue;
+      const label = line.slice(0, colonIdx).trim();
+      if (!label) continue;
+      const rest = line.slice(colonIdx + 1).split(",").map(s => s.trim()).filter(Boolean);
+      const meta = rest.filter(tok => !STATUS_KEYWORDS.has(tok.toLowerCase()));
+      if (meta.length === 0) continue;
+      const id = meta[0];
+      if (!id || /^\d{4}-\d{2}-\d{2}/.test(id) || /^after\b/i.test(id) || /^\d+[dwmy]?$/i.test(id)) continue;
+      tasks.push({ id, label });
+    }
+    return { sections, tasks };
+  }
+
+  function linkKeyForSection(name) {
+    return "section::" + name;
+  }
+
+  function extractGanttTitle(content) {
+    const m = (content || "").match(/^\s*title\s+(.+)$/m);
+    return m ? m[1].trim() : null;
+  }
+
+  function setGanttTitle(content, newTitle) {
+    const lines = (content || "").split("\n");
+    const idx = lines.findIndex(l => /^\s*title\s+\S/.test(l));
+    if (idx >= 0) {
+      const indent = lines[idx].match(/^\s*/)[0];
+      lines[idx] = indent + "title " + newTitle;
+      return lines.join("\n");
+    }
+    const gi = lines.findIndex(l => /^\s*gantt\s*$/.test(l));
+    lines.splice(gi >= 0 ? gi + 1 : 0, 0, "    title " + newTitle);
+    return lines.join("\n");
+  }
+
+  function uniqueName(base, existingNames) {
+    if (!existingNames.includes(base)) return base;
+    let n = 2;
+    while (existingNames.includes(base + " " + n)) n++;
+    return base + " " + n;
+  }
+
+  // ---------------------------------------------------------------------
+  // Editor (CodeMirror)
+  // ---------------------------------------------------------------------
+  CodeMirror.defineSimpleMode("ganttmmd", {
+    start: [
+      { regex: /%%.*/, token: "comment" },
+      { regex: /"(?:[^\\"]|\\.)*"/, token: "string" },
+      { regex: /\b(gantt|title|dateFormat|axisFormat|excludes|section|click|call|href|todayMarker)\b/, token: "keyword" },
+      { regex: /\b(done|active|crit|milestone|after)\b/, token: "atom" },
+      { regex: /\d{4}-\d{2}-\d{2}/, token: "number" },
+      { regex: /\b\d+[dwmy]\b/i, token: "number" }
+    ],
+    meta: { lineComment: "%%" }
+  });
+
+  const cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
+    mode: "ganttmmd",
+    lineNumbers: true,
+    lineWrapping: true,
+    indentUnit: 4,
+    tabSize: 4,
+    gutters: ["CodeMirror-linenumbers"]
+  });
+
+  function clearErrorLine() {
+    // Recorre TODAS las líneas actuales en vez de recordar un solo índice:
+    // tras reemplazar el contenido completo (ej. al corregir el error), un
+    // índice guardado de antes puede apuntar a una línea distinta o a un
+    // handle ya desprendido del documento, dejando la marca roja "pegada".
+    const total = cm.lineCount();
+    for (let i = 0; i < total; i++) {
+      cm.removeLineClass(i, "background", "cm-error-line");
+    }
+  }
+  function highlightErrorLine(message) {
+    clearErrorLine();
+    const m = /line (\d+)/i.exec(message || "");
+    if (!m) return;
+    const lineNum = parseInt(m[1], 10) - 1;
+    if (lineNum >= 0 && lineNum < cm.lineCount()) {
+      cm.addLineClass(lineNum, "background", "cm-error-line");
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  let renderSeq = 0;
+
+  function buildRenderableSource(project) {
+    let src = project.general.content;
+    const { tasks } = extractGanttItems(src);
+    const clickLines = [];
+    for (const t of tasks) {
+      const target = project.general.links[t.id];
+      if (target && project.subprojects[target]) {
+        clickLines.push('click ' + t.id + ' call mdGanttHandleTaskClick("' + t.id + '")');
+      }
+    }
+    if (clickLines.length) src += "\n" + clickLines.join("\n") + "\n";
+    return src;
+  }
+
+  // La navegación por clic simple se difiere 300ms: un doble clic (que abre
+  // el editor de tarea) dispara antes dos clics simples, y sin este delay
+  // navegaría al subproyecto antes de que el dblclick pueda llegar.
+  let pendingNavTimer = null;
+  window.mdGanttHandleTaskClick = function (taskId) {
+    clearTimeout(pendingNavTimer);
+    pendingNavTimer = setTimeout(() => {
+      const project = getActiveProject();
+      if (!project) return;
+      const subId = project.general.links[taskId];
+      if (subId && project.subprojects[subId]) openSubproject(project.id, subId);
+    }, 300);
+  };
+
+  function attachSectionClickHandlers(container, project) {
+    const linkedSectionNames = Object.keys(project.general.links)
+      .filter(k => k.startsWith("section::"))
+      .map(k => k.slice("section::".length))
+      .filter(name => project.subprojects[project.general.links[linkKeyForSection(name)]]);
+    if (!linkedSectionNames.length) return;
+    const texts = container.querySelectorAll("text");
+    texts.forEach(t => {
+      const content = (t.textContent || "").trim();
+      if (linkedSectionNames.includes(content)) {
+        const subId = project.general.links[linkKeyForSection(content)];
+        t.classList.add("linked-section");
+        t.addEventListener("click", () => openSubproject(project.id, subId));
+      }
+    });
+  }
+
+  function showError(message) {
+    const box = document.getElementById("error-box");
+    box.textContent = message;
+    box.classList.remove("hidden");
+    highlightErrorLine(message);
+    markStatusError();
+  }
+
+  function hideError() {
+    const box = document.getElementById("error-box");
+    box.classList.add("hidden");
+    box.textContent = "";
+    clearErrorLine();
+  }
+
+  async function renderPreview() {
+    if (previewMode === "interactive") {
+      renderInteractiveView();
+      return;
+    }
+    const project = getActiveProject();
+    const previewEl = document.getElementById("preview");
+    if (!project) {
+      previewEl.innerHTML = "";
+      return;
+    }
+    const subId = getCurrentSubprojectId();
+    const isGeneral = !subId;
+    const rawText = isGeneral ? project.general.content : (project.subprojects[subId] ? project.subprojects[subId].content : "");
+    const sourceForRender = isGeneral ? buildRenderableSource(project) : rawText;
+
+    const mySeq = ++renderSeq;
+    try {
+      const renderId = "mdgantt-render-" + mySeq;
+      const { svg, bindFunctions } = await mermaid.render(renderId, sourceForRender);
+      if (mySeq !== renderSeq) return; // a newer render started, discard this result
+      previewEl.innerHTML = svg;
+      if (bindFunctions) bindFunctions(previewEl);
+      if (isGeneral) attachSectionClickHandlers(previewEl, project);
+      hideError();
+      applyZoom();
+    } catch (err) {
+      if (mySeq !== renderSeq) return;
+      showError((err && err.message) ? err.message : String(err));
+    }
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return function (...args) {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(null, args), ms);
+    };
+  }
+
+  const debouncedRender = debounce(renderPreview, 500);
+  const debouncedMarkSaved = debounce(() => { if (document.getElementById("error-box").classList.contains("hidden")) markSaved(); }, 500);
+
+  // ---------------------------------------------------------------------
+  // Editor <-> state wiring
+  // ---------------------------------------------------------------------
+  function loadEditorForCurrentView() {
+    const project = getActiveProject();
+    if (!project) {
+      cm.setValue("");
+      cm.setOption("readOnly", true);
+      return;
+    }
+    cm.setOption("readOnly", false);
+    const subId = getCurrentSubprojectId();
+    if (!subId) {
+      cm.setValue(project.general.content);
+    } else if (project.subprojects[subId]) {
+      cm.setValue(project.subprojects[subId].content);
+    } else {
+      setCurrentSubprojectId(null);
+      cm.setValue(project.general.content);
+    }
+    clearErrorLine();
+  }
+
+  // El "title" del diagrama y el nombre del proyecto/subproyecto son la misma
+  // cosa: al escribir el title (o pegar contenido con otro title) el nombre
+  // se actualiza al instante. Editar otras líneas nunca renombra, por eso se
+  // compara el title anterior con el nuevo y no el nombre con el title.
+  function syncNameFromTitle(project, subId, oldContent, newContent) {
+    const newTitle = extractGanttTitle(newContent);
+    if (!newTitle || newTitle === extractGanttTitle(oldContent)) return;
+    if (!subId) {
+      if (project.name === newTitle) return;
+      project.name = newTitle;
+      renderTopbar();
+    } else {
+      if (!project.subprojects[subId] || project.subprojects[subId].name === newTitle) return;
+      project.subprojects[subId].name = newTitle;
+      renderSidebar();
+      renderEditorLabel();
+    }
+    renderBreadcrumb();
+  }
+
+  cm.on("change", (instance, change) => {
+    if (change.origin === "setValue") return; // programmatic load, not a user edit
+    const project = getActiveProject();
+    if (!project) return;
+    const subId = getCurrentSubprojectId();
+    const now = Date.now();
+    const value = cm.getValue();
+    const oldContent = subId
+      ? (project.subprojects[subId] ? project.subprojects[subId].content : "")
+      : project.general.content;
+    if (!subId) {
+      project.general.content = value;
+    } else if (project.subprojects[subId]) {
+      project.subprojects[subId].content = value;
+      project.subprojects[subId].updatedAt = now;
+    }
+    project.updatedAt = now;
+    syncNameFromTitle(project, subId, oldContent, value);
+    markSaving();
+    saveState();
+    debouncedMarkSaved();
+    debouncedRender();
+  });
+
+  // ---------------------------------------------------------------------
+  // Navigation (general <-> subproject)
+  // ---------------------------------------------------------------------
+  function openGeneral(projectId) {
+    state.activeProjectId = projectId;
+    setCurrentSubprojectId(null);
+    return fullRefresh();
+  }
+
+  function openSubproject(projectId, subId) {
+    state.activeProjectId = projectId;
+    setCurrentSubprojectId(subId);
+    return fullRefresh();
+  }
+
+  // ---------------------------------------------------------------------
+  // CRUD: projects
+  // ---------------------------------------------------------------------
+  // Deja el título seleccionado en el editor: escribir reemplaza directamente
+  // el nombre por defecto y, vía syncNameFromTitle, renombra en vivo.
+  function selectTitleInEditor() {
+    const total = cm.lineCount();
+    for (let i = 0; i < total; i++) {
+      const m = cm.getLine(i).match(/^(\s*title\s+)(.+)$/);
+      if (m) {
+        cm.focus();
+        cm.setSelection({ line: i, ch: m[1].length }, { line: i, ch: m[1].length + m[2].length });
+        return;
+      }
+    }
+  }
+
+  function createProject() {
+    const name = uniqueName("Nuevo proyecto", Object.values(state.projects).map(p => p.name));
+    const id = uid();
+    state.projects[id] = {
+      id, name,
+      createdAt: Date.now(), updatedAt: Date.now(),
+      general: { content: defaultGeneralTemplate(name), links: {} },
+      subprojects: {}
+    };
+    state.activeProjectId = id;
+    setCurrentSubprojectId(null);
+    saveState();
+    fullRefresh().then(selectTitleInEditor);
+  }
+
+  async function renameProject() {
+    const project = getActiveProject();
+    if (!project) return;
+    const name = await showPrompt("Nuevo nombre del proyecto:", project.name);
+    if (!name) return;
+    project.name = name.trim();
+    // Nombre y title son lo mismo: el gantt general refleja el rename.
+    project.general.content = setGanttTitle(project.general.content, project.name);
+    project.updatedAt = Date.now();
+    saveState();
+    fullRefresh();
+  }
+
+  async function deleteProject() {
+    const project = getActiveProject();
+    if (!project) return;
+    const ok = await showConfirm("Eliminar proyecto", 'Se eliminará el proyecto "' + project.name + '" y todos sus subproyectos. Esta acción no se puede deshacer.');
+    if (!ok) return;
+    delete state.projects[project.id];
+    delete viewState[project.id];
+    const remaining = Object.keys(state.projects);
+    state.activeProjectId = remaining.length ? remaining[0] : null;
+    saveState();
+    fullRefresh();
+  }
+
+  async function duplicateProject() {
+    const project = getActiveProject();
+    if (!project) return;
+    const name = await showPrompt("Nombre del proyecto duplicado:", project.name + " (copia)");
+    if (!name) return;
+    const cloned = JSON.parse(JSON.stringify(project));
+    const newId = uid();
+    cloned.id = newId;
+    cloned.name = name.trim();
+    cloned.general.content = setGanttTitle(cloned.general.content, cloned.name);
+    cloned.createdAt = Date.now();
+    cloned.updatedAt = Date.now();
+
+    const idMap = {};
+    const newSubs = {};
+    Object.values(cloned.subprojects).forEach(sub => {
+      const newSubId = uid();
+      idMap[sub.id] = newSubId;
+      sub.id = newSubId;
+      newSubs[newSubId] = sub;
+    });
+    cloned.subprojects = newSubs;
+
+    const newLinks = {};
+    Object.keys(cloned.general.links).forEach(key => {
+      const target = cloned.general.links[key];
+      if (idMap[target]) newLinks[key] = idMap[target];
+    });
+    cloned.general.links = newLinks;
+
+    state.projects[newId] = cloned;
+    state.activeProjectId = newId;
+    setCurrentSubprojectId(null);
+    saveState();
+    fullRefresh();
+  }
+
+  // ---------------------------------------------------------------------
+  // CRUD: subprojects
+  // ---------------------------------------------------------------------
+  function createSubproject() {
+    const project = getActiveProject();
+    if (!project) return;
+    const name = uniqueName("Nuevo subproyecto", Object.values(project.subprojects).map(s => s.name));
+    const id = uid();
+    project.subprojects[id] = {
+      id, name,
+      createdAt: Date.now(), updatedAt: Date.now(),
+      content: defaultSubprojectTemplate(name)
+    };
+    project.updatedAt = Date.now();
+    saveState();
+    openSubproject(project.id, id).then(selectTitleInEditor);
+  }
+
+  async function renameSubproject(subId) {
+    const project = getActiveProject();
+    if (!project || !project.subprojects[subId]) return;
+    const sub = project.subprojects[subId];
+    const name = await showPrompt("Nuevo nombre del subproyecto:", sub.name);
+    if (!name) return;
+    sub.name = name.trim();
+    sub.content = setGanttTitle(sub.content, sub.name);
+    sub.updatedAt = Date.now();
+    project.updatedAt = Date.now();
+    saveState();
+    fullRefresh();
+  }
+
+  async function deleteSubproject(subId) {
+    const project = getActiveProject();
+    if (!project || !project.subprojects[subId]) return;
+    const sub = project.subprojects[subId];
+    const ok = await showConfirm("Eliminar subproyecto", 'Se eliminará "' + sub.name + '" y sus vínculos desde el gantt general.');
+    if (!ok) return;
+    delete project.subprojects[subId];
+    Object.keys(project.general.links).forEach(key => {
+      if (project.general.links[key] === subId) delete project.general.links[key];
+    });
+    if (getCurrentSubprojectId() === subId) setCurrentSubprojectId(null);
+    project.updatedAt = Date.now();
+    saveState();
+    fullRefresh();
+  }
+
+  async function duplicateSubproject() {
+    const project = getActiveProject();
+    const subId = getCurrentSubprojectId();
+    if (!project || !subId || !project.subprojects[subId]) {
+      await showAlert("Ningún subproyecto activo", "Abre un subproyecto (no el gantt general) para poder duplicarlo.");
+      return;
+    }
+    const original = project.subprojects[subId];
+    const name = await showPrompt("Nombre del subproyecto duplicado:", original.name + " (copia)");
+    if (!name) return;
+    const newId = uid();
+    project.subprojects[newId] = { id: newId, name: name.trim(), createdAt: Date.now(), updatedAt: Date.now(), content: setGanttTitle(original.content, name.trim()) };
+    project.updatedAt = Date.now();
+    saveState();
+    openSubproject(project.id, newId);
+  }
+
+  // ---------------------------------------------------------------------
+  // Links modal
+  // ---------------------------------------------------------------------
+  function openLinksModal() {
+    const project = getActiveProject();
+    if (!project) return;
+    const { sections, tasks } = extractGanttItems(project.general.content);
+    const tbody = document.getElementById("linksTableBody");
+    tbody.innerHTML = "";
+
+    const subOptions = Object.values(project.subprojects);
+
+    function buildRow(itemKey, label, type) {
+      const tr = document.createElement("tr");
+
+      const tdLabel = document.createElement("td");
+      tdLabel.textContent = label;
+      tr.appendChild(tdLabel);
+
+      const tdType = document.createElement("td");
+      tdType.textContent = type;
+      tr.appendChild(tdType);
+
+      const tdSelect = document.createElement("td");
+      const select = document.createElement("select");
+      const noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "— sin vincular —";
+      select.appendChild(noneOpt);
+      subOptions.forEach(sub => {
+        const opt = document.createElement("option");
+        opt.value = sub.id;
+        opt.textContent = sub.name;
+        if (project.general.links[itemKey] === sub.id) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", () => {
+        if (select.value) {
+          project.general.links[itemKey] = select.value;
+        } else {
+          delete project.general.links[itemKey];
+        }
+        project.updatedAt = Date.now();
+        saveState();
+        renderPreview();
+        renderSidebar();
+      });
+      tdSelect.appendChild(select);
+      tr.appendChild(tdSelect);
+
+      tbody.appendChild(tr);
+    }
+
+    if (!subOptions.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 3;
+      td.textContent = "Crea al menos un subproyecto para poder vincularlo.";
+      td.style.color = "var(--text-dim)";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    } else {
+      tasks.forEach(t => buildRow(t.id, t.label + " (" + t.id + ")", "Tarea"));
+      sections.forEach(s => buildRow(linkKeyForSection(s), s, "Sección"));
+      if (!tasks.length && !sections.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 3;
+        td.textContent = "No se detectaron tareas ni secciones en el gantt general.";
+        td.style.color = "var(--text-dim)";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
+    }
+
+    document.getElementById("linksModalOverlay").classList.remove("hidden");
+  }
+
+  function closeLinksModal() {
+    document.getElementById("linksModalOverlay").classList.add("hidden");
+  }
+
+  // ---------------------------------------------------------------------
+  // Import / export
+  // ---------------------------------------------------------------------
+  function downloadTextFile(filename, content, mime) {
+    const blob = new Blob([content], { type: mime || "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function slugify(name) {
+    return (name || "diagrama").toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "diagrama";
+  }
+
+  function exportCurrentMd() {
+    const project = getActiveProject();
+    if (!project) return;
+    const subId = getCurrentSubprojectId();
+    const isGeneral = !subId;
+    const name = isGeneral ? project.name + " (General)" : project.subprojects[subId].name;
+    const content = isGeneral ? project.general.content : project.subprojects[subId].content;
+    const md = "# " + name + "\n\n```mermaid\n" + content + "\n```\n";
+    downloadTextFile(slugify(name) + ".md", md);
+  }
+
+  function extractFirstMermaidBlock(text) {
+    const m = text.match(/```mermaid\r?\n([\s\S]*?)```/);
+    return m ? m[1].trim() : null;
+  }
+
+  async function importSingleMd(file) {
+    const project = getActiveProject();
+    if (!project) { await showAlert("Sin proyecto activo", "Crea o selecciona un proyecto antes de importar."); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const text = String(reader.result);
+      const content = extractFirstMermaidBlock(text);
+      if (!content) { await showAlert("Archivo inválido", "No se encontró ningún bloque ```mermaid en el archivo."); return; }
+      const baseName = file.name.replace(/\.md$/i, "");
+      const defaultName = (text.match(/^#\s+(.+)$/m) || [null, baseName])[1];
+      const name = await showPrompt("Nombre del subproyecto a crear/actualizar:", defaultName);
+      if (!name) return;
+      let target = Object.values(project.subprojects).find(s => s.name === name.trim());
+      if (target) {
+        const ok = await showConfirm("Sobrescribir subproyecto", 'Ya existe un subproyecto llamado "' + target.name + '". ¿Sobrescribir su contenido?');
+        if (!ok) return;
+        target.content = content;
+        target.updatedAt = Date.now();
+      } else {
+        const id = uid();
+        target = { id, name: name.trim(), createdAt: Date.now(), updatedAt: Date.now(), content };
+        project.subprojects[id] = target;
+      }
+      project.updatedAt = Date.now();
+      saveState();
+      openSubproject(project.id, target.id);
+    };
+    reader.readAsText(file);
+  }
+
+  function cleanHeadingTitle(h) {
+    return h.replace(/^\d+\.\s*/, "").replace(/^Detalle\s*[—-]\s*/i, "").trim();
+  }
+
+  function parseMarkdownGantt(text) {
+    const h1Match = text.match(/^#\s+(.+)$/m);
+    const projectName = h1Match ? h1Match[1].trim() : "Proyecto importado";
+
+    const headingRegex = /^##\s+(.+)$/gm;
+    const mermaidRegex = /```mermaid\r?\n([\s\S]*?)```/g;
+
+    const headings = [];
+    let hm;
+    while ((hm = headingRegex.exec(text)) !== null) {
+      headings.push({ index: hm.index, title: hm[1].trim() });
+    }
+    const blocks = [];
+    let mm;
+    while ((mm = mermaidRegex.exec(text)) !== null) {
+      let heading = null;
+      for (const h of headings) {
+        if (h.index < mm.index) heading = h.title;
+        else break;
+      }
+      blocks.push({ heading: heading || "Diagrama", content: mm[1].trim() });
+    }
+    return { projectName, blocks };
+  }
+
+  async function importFullMd(file) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const text = String(reader.result);
+      const { projectName, blocks } = parseMarkdownGantt(text);
+      if (!blocks.length) { await showAlert("Archivo inválido", "No se encontraron bloques ```mermaid en el archivo."); return; }
+      const name = (await showPrompt("Nombre del proyecto a crear:", projectName)) || projectName;
+      const id = uid();
+      const project = {
+        id, name: name.trim(),
+        createdAt: Date.now(), updatedAt: Date.now(),
+        general: { content: blocks[0].content, links: {} },
+        subprojects: {}
+      };
+      blocks.slice(1).forEach(b => {
+        const subId = uid();
+        project.subprojects[subId] = {
+          id: subId,
+          name: cleanHeadingTitle(b.heading),
+          createdAt: Date.now(), updatedAt: Date.now(),
+          content: b.content
+        };
+      });
+      state.projects[id] = project;
+      state.activeProjectId = id;
+      setCurrentSubprojectId(null);
+      saveState();
+      fullRefresh();
+      await showAlert("Proyecto importado", 'Proyecto "' + project.name + '" importado con ' + blocks.slice(1).length + " subproyecto(s). Recuerda vincular tareas/secciones desde el botón 🔗 Vincular.");
+    };
+    reader.readAsText(file);
+  }
+
+  function exportBackup() {
+    const json = JSON.stringify(state, null, 2);
+    const date = new Date().toISOString().slice(0, 10);
+    downloadTextFile("mdganttviewer-backup-" + date + ".json", json, "application/json");
+  }
+
+  async function importBackup(file) {
+    const ok = await showConfirm("Reemplazar todos los datos", "Importar este backup reemplazará TODOS los proyectos guardados actualmente.");
+    if (!ok) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!parsed || typeof parsed !== "object" || !parsed.projects) {
+          throw new Error("El archivo no tiene el formato esperado.");
+        }
+        state = parsed;
+        const ids = Object.keys(state.projects);
+        if (!state.activeProjectId || !state.projects[state.activeProjectId]) {
+          state.activeProjectId = ids.length ? ids[0] : null;
+        }
+        saveState();
+        fullRefresh();
+      } catch (e) {
+        await showAlert("Error al importar", "No se pudo importar el backup: " + e.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---------------------------------------------------------------------
+  // Search
+  // ---------------------------------------------------------------------
+  const searchInput = document.getElementById("searchInput");
+  const searchResultsEl = document.getElementById("searchResults");
+
+  function searchTasks(query) {
+    const project = getActiveProject();
+    if (!project || !query.trim()) return [];
+    const q = query.trim().toLowerCase();
+    const results = [];
+    extractGanttItems(project.general.content).tasks.forEach(t => {
+      if (t.label.toLowerCase().includes(q)) results.push({ subId: null, viewName: "General", label: t.label });
+    });
+    Object.values(project.subprojects).forEach(sub => {
+      extractGanttItems(sub.content).tasks.forEach(t => {
+        if (t.label.toLowerCase().includes(q)) results.push({ subId: sub.id, viewName: sub.name, label: t.label });
+      });
+    });
+    return results.slice(0, 30);
+  }
+
+  function pulseTextMatching(container, text) {
+    const els = Array.from(container.querySelectorAll("text")).filter(t => (t.textContent || "").trim() === text.trim());
+    els.forEach(el => {
+      el.classList.remove("cell-pulse");
+      void el.getBBox && el.getBBox();
+      el.classList.add("cell-pulse");
+    });
+    if (els.length) els[0].scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }
+
+  function closeSearchResults() {
+    searchResultsEl.classList.add("hidden");
+    searchResultsEl.innerHTML = "";
+  }
+
+  function renderSearchResults(results) {
+    searchResultsEl.innerHTML = "";
+    if (!results.length) {
+      const div = document.createElement("div");
+      div.className = "search-empty";
+      div.textContent = "Sin resultados.";
+      searchResultsEl.appendChild(div);
+    } else {
+      results.forEach(r => {
+        const item = document.createElement("div");
+        item.className = "search-item";
+        const viewSpan = document.createElement("span");
+        viewSpan.className = "view-name";
+        viewSpan.textContent = r.viewName;
+        const labelSpan = document.createElement("span");
+        labelSpan.textContent = r.label;
+        item.appendChild(viewSpan);
+        item.appendChild(labelSpan);
+        item.addEventListener("click", async () => {
+          const project = getActiveProject();
+          if (!project) return;
+          if (r.subId) await openSubproject(project.id, r.subId);
+          else await openGeneral(project.id);
+          if (previewMode === "interactive") pulseInteractiveRow(r.label);
+          else pulseTextMatching(document.getElementById("preview"), r.label);
+          closeSearchResults();
+        });
+        searchResultsEl.appendChild(item);
+      });
+    }
+    searchResultsEl.classList.remove("hidden");
+  }
+
+  searchInput.addEventListener("input", () => {
+    const query = searchInput.value;
+    if (!query.trim()) { closeSearchResults(); return; }
+    renderSearchResults(searchTasks(query));
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".search-wrap")) closeSearchResults();
+  });
+
+  // ---------------------------------------------------------------------
+  // Zoom / pan
+  // ---------------------------------------------------------------------
+  let zoomLevel = 1;
+  const previewEl = document.getElementById("preview");
+  const previewWrap = document.getElementById("preview-wrap");
+  const zoomLabel = document.getElementById("zoomLabel");
+
+  function applyZoom() {
+    // Escala el SVG de forma vectorial (width/height reales sobre el mismo
+    // viewBox) en vez de transform:scale CSS: el transform rasteriza el layer
+    // al tamaño original y lo estira como bitmap, por eso se veía borroso al
+    // hacer zoom. Con width/height explícitos el navegador re-renderiza el
+    // vector nítido a cualquier escala.
+    const svg = previewEl.querySelector("svg");
+    if (svg) {
+      let vb = svg.getAttribute("viewBox");
+      if (!vb) {
+        const w = parseFloat(svg.getAttribute("width")) || svg.getBoundingClientRect().width || 800;
+        const h = parseFloat(svg.getAttribute("height")) || svg.getBoundingClientRect().height || 400;
+        svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+        vb = svg.getAttribute("viewBox");
+      }
+      const parts = vb.split(/[\s,]+/).map(Number);
+      const baseW = parts[2] || 800;
+      const baseH = parts[3] || 400;
+      svg.style.maxWidth = "none";
+      svg.style.width = (baseW * zoomLevel) + "px";
+      svg.style.height = (baseH * zoomLevel) + "px";
+      svg.setAttribute("width", baseW * zoomLevel);
+      svg.setAttribute("height", baseH * zoomLevel);
+    }
+    zoomLabel.textContent = Math.round(zoomLevel * 100) + "%";
+  }
+  function resetZoom() { zoomLevel = 1; applyZoom(); }
+
+  document.getElementById("btnZoomIn").addEventListener("click", () => { zoomLevel = Math.min(3, zoomLevel + 0.15); applyZoom(); });
+  document.getElementById("btnZoomOut").addEventListener("click", () => { zoomLevel = Math.max(0.25, zoomLevel - 0.15); applyZoom(); });
+  document.getElementById("btnZoomFit").addEventListener("click", resetZoom);
+  previewWrap.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    zoomLevel = Math.min(3, Math.max(0.25, zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1)));
+    applyZoom();
+  }, { passive: false });
+
+  let panState = null;
+  previewWrap.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || e.target.closest("text")) return;
+    panState = { startX: e.clientX, startY: e.clientY, scrollLeft: previewWrap.scrollLeft, scrollTop: previewWrap.scrollTop };
+    previewWrap.classList.add("panning");
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!panState) return;
+    previewWrap.scrollLeft = panState.scrollLeft - (e.clientX - panState.startX);
+    previewWrap.scrollTop = panState.scrollTop - (e.clientY - panState.startY);
+  });
+  window.addEventListener("mouseup", () => {
+    if (panState) { panState = null; previewWrap.classList.remove("panning"); }
+  });
+
+  // ---------------------------------------------------------------------
+  // Edición inversa: doble clic sobre una tarea de la vista previa abre un
+  // formulario que reescribe la línea correspondiente del texto Mermaid.
+  // ---------------------------------------------------------------------
+  function getCurrentContent() {
+    const project = getActiveProject();
+    if (!project) return "";
+    const subId = getCurrentSubprojectId();
+    return subId && project.subprojects[subId] ? project.subprojects[subId].content : project.general.content;
+  }
+
+  // A diferencia de extractGanttItems (que solo devuelve tareas con id, para
+  // vínculos/búsqueda), esto conserva TODA la información de la línea
+  // (índice, indentación, flags, tokens de tiempo) para poder reconstruirla.
+  function parseTaskLines(content) {
+    const out = [];
+    content.split("\n").forEach((raw, idx) => {
+      const line = raw.trim();
+      if (!line) return;
+      if (/^(gantt|title|dateFormat|axisFormat|excludes|section|click|todayMarker|tickInterval|weekday)\b/i.test(line)) return;
+      if (line.startsWith("%%")) return;
+      const colonIdx = line.indexOf(":");
+      if (colonIdx <= 0) return;
+      const label = line.slice(0, colonIdx).trim();
+      const tokens = line.slice(colonIdx + 1).split(",").map(s => s.trim()).filter(Boolean);
+      if (!tokens.length) return;
+      const flags = [];
+      const rest = [];
+      tokens.forEach(t => {
+        if (STATUS_KEYWORDS.has(t.toLowerCase())) flags.push(t.toLowerCase());
+        else rest.push(t);
+      });
+      let id = null;
+      let timeTokens = rest;
+      if (rest.length) {
+        const first = rest[0];
+        const looksLikeTime = /^\d{4}-\d{2}-\d{2}/.test(first) || /^after\b/i.test(first) || /^until\b/i.test(first) || /^\d+(\.\d+)?[dwmyh]$/i.test(first);
+        if (!looksLikeTime) {
+          id = first;
+          timeTokens = rest.slice(1);
+        }
+      }
+      out.push({ lineIndex: idx, indent: raw.match(/^\s*/)[0], label, flags, id, timeTokens });
+    });
+    return out;
+  }
+
+  const taskModalOverlay = document.getElementById("taskModalOverlay");
+  let taskEditCurrent = null;
+
+  function openTaskEditModal(taskRef) {
+    taskEditCurrent = taskRef;
+    document.getElementById("taskEditLabel").value = taskRef.label;
+    document.getElementById("taskEditId").value = taskRef.id || "";
+    document.getElementById("taskEditStart").value = taskRef.timeTokens[0] || "";
+    document.getElementById("taskEditEnd").value = taskRef.timeTokens[1] || "";
+    ["done", "active", "crit", "milestone"].forEach(f => {
+      document.getElementById("taskFlag-" + f).checked = taskRef.flags.includes(f);
+    });
+    taskModalOverlay.classList.remove("hidden");
+    setTimeout(() => document.getElementById("taskEditLabel").focus(), 30);
+  }
+
+  function closeTaskModal() {
+    taskModalOverlay.classList.add("hidden");
+    taskEditCurrent = null;
+  }
+
+  function applyContentUpdate(newContent, oldId, newId) {
+    const project = getActiveProject();
+    if (!project) return;
+    const subId = getCurrentSubprojectId();
+    const now = Date.now();
+    if (subId && project.subprojects[subId]) {
+      project.subprojects[subId].content = newContent;
+      project.subprojects[subId].updatedAt = now;
+    } else {
+      project.general.content = newContent;
+      // Si cambió el id de la tarea, mover su vínculo para que no quede huérfano.
+      if (oldId && newId && oldId !== newId && project.general.links[oldId]) {
+        project.general.links[newId] = project.general.links[oldId];
+        delete project.general.links[oldId];
+      }
+    }
+    project.updatedAt = now;
+    markSaving();
+    saveState();
+    debouncedMarkSaved();
+    loadEditorForCurrentView();
+    renderPreview();
+    renderSidebar();
+  }
+
+  function saveTaskEdit() {
+    const t = taskEditCurrent;
+    if (!t) return;
+    const label = document.getElementById("taskEditLabel").value.trim();
+    if (!label) return;
+    const newId = document.getElementById("taskEditId").value.trim();
+    const start = document.getElementById("taskEditStart").value.trim();
+    const end = document.getElementById("taskEditEnd").value.trim();
+    const flags = ["done", "active", "crit", "milestone"].filter(f => document.getElementById("taskFlag-" + f).checked);
+    const parts = flags.slice();
+    if (newId) parts.push(newId);
+    [start, end].filter(Boolean).forEach(tok => parts.push(tok));
+    const newLine = t.indent + label + " :" + parts.join(", ");
+    const lines = getCurrentContent().split("\n");
+    if (t.lineIndex >= lines.length) { closeTaskModal(); return; }
+    lines[t.lineIndex] = newLine;
+    const oldId = t.id;
+    closeTaskModal();
+    applyContentUpdate(lines.join("\n"), oldId, newId);
+  }
+
+  document.getElementById("taskEditSave").addEventListener("click", saveTaskEdit);
+  document.getElementById("taskEditCancel").addEventListener("click", closeTaskModal);
+  taskModalOverlay.addEventListener("click", (e) => {
+    if (e.target === taskModalOverlay) closeTaskModal();
+  });
+
+  previewEl.addEventListener("dblclick", (e) => {
+    clearTimeout(pendingNavTimer); // cancela la navegación pendiente del clic simple
+    const project = getActiveProject();
+    if (!project) return;
+    const taskLines = parseTaskLines(getCurrentContent());
+    if (!taskLines.length) return;
+    const el = e.target.closest ? e.target.closest("rect[id], text") : null;
+    if (!el) return;
+    let found = null;
+    if (el.id) found = taskLines.find(t => t.id === el.id);
+    if (!found && el.tagName && el.tagName.toLowerCase() === "text") {
+      const txt = (el.textContent || "").trim();
+      found = taskLines.find(t => t.label.trim() === txt);
+    }
+    if (found) openTaskEditModal(found);
+  });
+
+  // ---------------------------------------------------------------------
+  // Pestañas móviles (solo visibles <768px): alternan Editor / Vista previa
+  // ---------------------------------------------------------------------
+  document.querySelectorAll(".mobile-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".mobile-tab").forEach(b => b.classList.toggle("active", b === btn));
+      const showEditor = btn.dataset.mtab === "editor";
+      document.body.classList.toggle("mobile-editor", showEditor);
+      document.body.classList.toggle("mobile-preview", !showEditor);
+      if (showEditor) cm.refresh(); // CodeMirror no mide bien si se inicializó oculto
+    });
+  });
+  document.body.classList.add("mobile-preview");
+
+  // ---------------------------------------------------------------------
+  // Resizer
+  // ---------------------------------------------------------------------
+  const resizerEl = document.getElementById("resizer");
+  const editorPaneEl = document.getElementById("editorPane");
+  const panesEl = document.getElementById("panes");
+  let resizing = false;
+
+  resizerEl.addEventListener("mousedown", (e) => {
+    resizing = true;
+    resizerEl.classList.add("dragging");
+    document.body.classList.add("resizing");
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!resizing) return;
+    const rect = panesEl.getBoundingClientRect();
+    let pct = ((e.clientX - rect.left) / rect.width) * 100;
+    pct = Math.min(80, Math.max(20, pct));
+    editorPaneEl.style.flex = "0 0 " + pct + "%";
+    localStorage.setItem(WIDTH_KEY, String(pct));
+  });
+  window.addEventListener("mouseup", () => {
+    if (resizing) { resizing = false; resizerEl.classList.remove("dragging"); document.body.classList.remove("resizing"); }
+  });
+
+  (function restoreWidth() {
+    const saved = localStorage.getItem(WIDTH_KEY);
+    if (saved) editorPaneEl.style.flex = "0 0 " + saved + "%";
+  })();
+
+  // ---------------------------------------------------------------------
+  // Theme
+  // ---------------------------------------------------------------------
+  const btnTheme = document.getElementById("btnTheme");
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+    btnTheme.textContent = theme === "dark" ? "☀️" : "🌙";
+    mermaidInit();
+    renderPreview();
+  }
+  btnTheme.addEventListener("click", () => {
+    applyTheme(currentTheme() === "dark" ? "light" : "dark");
+  });
+  (function initTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    const theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+    btnTheme.textContent = theme === "dark" ? "☀️" : "🌙";
+    mermaidInit();
+  })();
+
+  // ---------------------------------------------------------------------
+  // UI rendering: topbar, sidebar, breadcrumb
+  // ---------------------------------------------------------------------
+  function renderTopbar() {
+    const select = document.getElementById("projectSelect");
+    select.innerHTML = "";
+    const projects = Object.values(state.projects).sort((a, b) => a.createdAt - b.createdAt);
+    projects.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name;
+      if (p.id === state.activeProjectId) opt.selected = true;
+      select.appendChild(opt);
+    });
+    const hasProject = !!getActiveProject();
+    document.getElementById("btnRenameProject").disabled = !hasProject;
+    document.getElementById("btnDeleteProject").disabled = !hasProject;
+    document.getElementById("btnDuplicateProject").disabled = !hasProject;
+    document.getElementById("btnLinks").disabled = !hasProject;
+    document.getElementById("btnExportMd").disabled = !hasProject;
+    document.getElementById("btnImportMd").disabled = !hasProject;
+    searchInput.disabled = !hasProject;
+  }
+
+  function renderBreadcrumb() {
+    const el = document.getElementById("breadcrumb");
+    const project = getActiveProject();
+    if (!project) { el.textContent = "Ningún proyecto seleccionado"; return; }
+    const subId = getCurrentSubprojectId();
+    el.innerHTML = "";
+    const projectSpan = document.createElement("span");
+    projectSpan.textContent = project.name;
+    el.appendChild(projectSpan);
+
+    el.appendChild(document.createTextNode(" / "));
+
+    if (!subId) {
+      const gen = document.createElement("strong");
+      gen.textContent = "General";
+      el.appendChild(gen);
+    } else {
+      const genLink = document.createElement("a");
+      genLink.textContent = "General";
+      genLink.addEventListener("click", () => openGeneral(project.id));
+      el.appendChild(genLink);
+      el.appendChild(document.createTextNode(" / "));
+      const subStrong = document.createElement("strong");
+      subStrong.textContent = project.subprojects[subId] ? project.subprojects[subId].name : "(desconocido)";
+      el.appendChild(subStrong);
+    }
+  }
+
+  function getLinkedSubIdsSummary(project) {
+    const map = {};
+    Object.keys(project.general.links).forEach(key => {
+      const subId = project.general.links[key];
+      if (!map[subId]) map[subId] = [];
+      if (key.startsWith("section::")) {
+        map[subId].push("sección: " + key.slice("section::".length));
+      } else {
+        map[subId].push("tarea: " + key);
+      }
+    });
+    return map;
+  }
+
+  function renderSidebar() {
+    const project = getActiveProject();
+    const viewList = document.getElementById("viewList");
+    const subList = document.getElementById("subprojectList");
+    viewList.innerHTML = "";
+    subList.innerHTML = "";
+
+    if (!project) return;
+
+    const subId = getCurrentSubprojectId();
+
+    const generalLi = document.createElement("li");
+    generalLi.className = subId ? "" : "active";
+    const generalName = document.createElement("span");
+    generalName.className = "name";
+    generalName.textContent = "🏠 Gantt general";
+    generalLi.appendChild(generalName);
+    generalLi.addEventListener("click", () => openGeneral(project.id));
+    viewList.appendChild(generalLi);
+
+    const linkedSummary = getLinkedSubIdsSummary(project);
+
+    Object.values(project.subprojects).forEach(sub => {
+      const li = document.createElement("li");
+      li.className = sub.id === subId ? "active" : "";
+
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = sub.name;
+      if (linkedSummary[sub.id]) {
+        name.title = "Vinculado desde: " + linkedSummary[sub.id].join(", ");
+      }
+      li.appendChild(name);
+
+      if (linkedSummary[sub.id]) {
+        const badge = document.createElement("span");
+        badge.className = "link-badge";
+        badge.textContent = "🔗";
+        badge.title = "Vinculado desde: " + linkedSummary[sub.id].join(", ");
+        li.appendChild(badge);
+      }
+
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "icon-btn";
+      renameBtn.textContent = "✎";
+      renameBtn.title = "Renombrar";
+      renameBtn.addEventListener("click", (e) => { e.stopPropagation(); renameSubproject(sub.id); });
+      li.appendChild(renameBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "icon-btn";
+      delBtn.textContent = "🗑";
+      delBtn.title = "Eliminar";
+      delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteSubproject(sub.id); });
+      li.appendChild(delBtn);
+
+      li.addEventListener("click", () => openSubproject(project.id, sub.id));
+      subList.appendChild(li);
+    });
+  }
+
+  function renderEditorLabel() {
+    const project = getActiveProject();
+    const label = document.getElementById("editorLabel");
+    const subId = getCurrentSubprojectId();
+    if (!project) { label.textContent = "Editor (Mermaid)"; }
+    else { label.textContent = "Editor (Mermaid) — " + (subId && project.subprojects[subId] ? project.subprojects[subId].name : "General"); }
+    document.getElementById("btnDuplicateSubproject").disabled = !project || !subId;
+  }
+
+  function renderEmptyState() {
+    const hasProjects = Object.keys(state.projects).length > 0;
+    document.getElementById("emptyState").classList.toggle("hidden", hasProjects);
+    document.getElementById("panes").classList.toggle("hidden", !hasProjects);
+    document.getElementById("sidebar").classList.toggle("hidden", !hasProjects);
+  }
+
+  async function fullRefresh() {
+    renderEmptyState();
+    renderTopbar();
+    renderBreadcrumb();
+    renderSidebar();
+    renderEditorLabel();
+    loadEditorForCurrentView();
+    hideError();
+    markSaved();
+    resetZoom();
+    // Al cambiar de vista se descarta el scroll guardado del gantt interactivo
+    // para que Frappe posicione el chart en la primera tarea del nuevo diagrama.
+    interactiveScroll = null;
+    updatePreviewModeUI();
+    cm.refresh();
+    await renderPreview();
+  }
+
+  // ---------------------------------------------------------------------
+  // Keyboard shortcuts
+  // ---------------------------------------------------------------------
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (!genModalOverlay.classList.contains("hidden")) { genModalCancel.click(); e.preventDefault(); return; }
+      if (!taskModalOverlay.classList.contains("hidden")) { closeTaskModal(); e.preventDefault(); return; }
+      if (!document.getElementById("linksModalOverlay").classList.contains("hidden")) { closeLinksModal(); e.preventDefault(); return; }
+      if (!searchResultsEl.classList.contains("hidden")) { closeSearchResults(); e.preventDefault(); return; }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      if (getActiveProject()) {
+        markSaving();
+        saveState();
+        debouncedMarkSaved();
+        renderPreview();
+      }
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // Event wiring
+  // ---------------------------------------------------------------------
+  document.getElementById("projectSelect").addEventListener("change", (e) => {
+    state.activeProjectId = e.target.value;
+    setCurrentSubprojectId(null);
+    saveState();
+    fullRefresh();
+  });
+  document.getElementById("btnNewProject").addEventListener("click", createProject);
+  document.getElementById("btnRenameProject").addEventListener("click", renameProject);
+  document.getElementById("btnDeleteProject").addEventListener("click", deleteProject);
+  document.getElementById("btnDuplicateProject").addEventListener("click", duplicateProject);
+  document.getElementById("btnNewSubproject").addEventListener("click", createSubproject);
+  document.getElementById("btnDuplicateSubproject").addEventListener("click", duplicateSubproject);
+  document.getElementById("btnEmptyCreate").addEventListener("click", createProject);
+
+  document.getElementById("btnLinks").addEventListener("click", openLinksModal);
+  document.getElementById("btnCloseLinks").addEventListener("click", closeLinksModal);
+  document.getElementById("linksModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "linksModalOverlay") closeLinksModal();
+  });
+
+  document.getElementById("btnExportMd").addEventListener("click", exportCurrentMd);
+  document.getElementById("btnImportMd").addEventListener("click", () => document.getElementById("fileImportMd").click());
+  document.getElementById("fileImportMd").addEventListener("change", (e) => {
+    if (e.target.files[0]) importSingleMd(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  document.getElementById("btnImportFull").addEventListener("click", () => document.getElementById("fileImportFull").click());
+  document.getElementById("fileImportFull").addEventListener("change", (e) => {
+    if (e.target.files[0]) importFullMd(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  document.getElementById("btnExportBackup").addEventListener("click", exportBackup);
+  document.getElementById("btnImportBackup").addEventListener("click", () => document.getElementById("fileImportBackup").click());
+  document.getElementById("fileImportBackup").addEventListener("change", (e) => {
+    if (e.target.files[0]) importBackup(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  // ---------------------------------------------------------------------
+  // Vista interactiva (Frappe Gantt)
+  //
+  // El texto Mermaid sigue siendo la única fuente de la verdad: esta vista
+  // lo parsea a un modelo con fechas resueltas, lo dibuja con Frappe Gantt
+  // y, ante cada gesto (arrastrar, estirar, % progreso), reescribe SOLO la
+  // línea afectada del texto — conservando comentarios, orden y formato.
+  // ---------------------------------------------------------------------
+  const PREVIEW_MODE_KEY = "mdGanttViewer.previewMode";
+  const GANTT_SCALE_KEY = "mdGanttViewer.ganttScale";
+  let previewMode = localStorage.getItem(PREVIEW_MODE_KEY) || "interactive";
+  let ganttScale = localStorage.getItem(GANTT_SCALE_KEY) || "Day";
+  let ganttInstance = null;
+  let interactiveScroll = null;
+  let pendingBarChanges = [];
+  let pendingFlushTimer = null;
+  let lastSnapshot = null;
+  // Nombres de sección colapsados (una fila de resumen en lugar de sus tareas).
+  const collapsedSections = new Set();
+
+  // [gantt-core-start] — funciones puras (sin DOM), testeables aparte
+
+  const DAY_MS = 86400000;
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  // Redondea al límite de día local más cercano. Frappe reporta la fecha fin
+  // como "último día + 24h − 1s", así que este redondeo la devuelve al límite
+  // exclusivo exacto sin importar ese segundo.
+  function roundToDay(d) { const s = startOfDay(d); return (d - s) >= DAY_MS / 2 ? addDays(s, 1) : s; }
+  function diffDays(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / DAY_MS); }
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function fmtISO(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  // Convierte un dateFormat de Mermaid (YYYY-MM-DD, DD/MM/YYYY, ...) en un
+  // par parse/format. Solo campos de fecha; si el formato trae hora, los
+  // literales posteriores al último token se ignoran (parse con ancla solo
+  // al inicio) para que "YYYY-MM-DD HH:mm" siga aceptando "2026-01-01".
+  function makeDateFormat(fmt) {
+    const tokenRe = /YYYY|YY|MM|DD|M|D/g;
+    const order = [];
+    let pattern = "";
+    let last = 0;
+    let m;
+    while ((m = tokenRe.exec(fmt)) !== null) {
+      pattern += escapeRe(fmt.slice(last, m.index));
+      order.push(m[0]);
+      pattern += m[0] === "YYYY" ? "(\\d{4})" : m[0] === "YY" ? "(\\d{2})" : "(\\d{1,2})";
+      last = m.index + m[0].length;
+    }
+    if (!order.length) return makeDateFormat("YYYY-MM-DD");
+    const parseRe = new RegExp("^" + pattern);
+    return {
+      fmt,
+      parse(tok) {
+        const mm = parseRe.exec(String(tok).trim());
+        if (!mm) return null;
+        let y = null, mo = null, da = null;
+        order.forEach((t, i) => {
+          const v = parseInt(mm[i + 1], 10);
+          if (t === "YYYY") y = v;
+          else if (t === "YY") y = 2000 + v;
+          else if (t === "MM" || t === "M") mo = v;
+          else da = v;
+        });
+        if (y === null || mo === null || da === null || mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+        const d = new Date(y, mo - 1, da);
+        return isNaN(d) ? null : d;
+      },
+      format(d) {
+        return fmt.replace(/YYYY|YY|MM|DD|M|D/g, t => {
+          switch (t) {
+            case "YYYY": return String(d.getFullYear());
+            case "YY": return pad2(d.getFullYear() % 100);
+            case "MM": return pad2(d.getMonth() + 1);
+            case "M": return String(d.getMonth() + 1);
+            case "DD": return pad2(d.getDate());
+            case "D": return String(d.getDate());
+          }
+        });
+      }
+    };
+  }
+
+  // Duración Mermaid ("5d", "2w", "36h"...) → días enteros (mínimo 1, que es
+  // la resolución de la rejilla interactiva).
+  function parseDurationTok(tok) {
+    const m = /^(\d+(?:\.\d+)?)(ms|s|m|h|d|w)?$/i.exec(String(tok).trim());
+    if (!m) return null;
+    const n = parseFloat(m[1]);
+    const u = (m[2] || "d").toLowerCase();
+    const perDay = { ms: 86400000, s: 86400, m: 1440, h: 24, d: 1, w: 1 / 7 };
+    return { days: Math.max(1, Math.round(n / perDay[u])), unit: u };
+  }
+
+  const WEEKDAY_INDEX = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+
+  function makeExcluder(doc, fmtObj) {
+    if (!doc.excludes || !doc.excludes.length) return null;
+    const dows = new Set();
+    const dates = new Set();
+    doc.excludes.forEach(tok => {
+      const l = tok.toLowerCase();
+      if (l === "weekends") { dows.add(0); dows.add(6); }
+      else if (WEEKDAY_INDEX[l] !== undefined) dows.add(WEEKDAY_INDEX[l]);
+      else { const d = fmtObj.parse(tok); if (d) dates.add(+startOfDay(d)); }
+    });
+    if (!dows.size && !dates.size) return null;
+    return d => dows.has(d.getDay()) || dates.has(+startOfDay(d));
+  }
+
+  // Avanza `days` días laborables desde start (igual que Mermaid: los días
+  // excluidos alargan la barra sin contar como duración).
+  function addWorkingDays(start, days, isExcluded) {
+    if (!isExcluded) return addDays(start, days);
+    let d = new Date(start), counted = 0, guard = 0;
+    while (counted < days && guard++ < 5000) {
+      if (!isExcluded(d)) counted++;
+      d = addDays(d, 1);
+    }
+    return d;
+  }
+
+  function countWorkingDays(start, endEx, isExcluded) {
+    if (!isExcluded) return Math.max(1, diffDays(start, endEx));
+    let n = 0, d = new Date(start), guard = 0;
+    while (d < endEx && guard++ < 5000) {
+      if (!isExcluded(d)) n++;
+      d = addDays(d, 1);
+    }
+    return Math.max(1, n);
+  }
+
+  // Parser estructural: a diferencia de parseTaskLines conserva secciones,
+  // dateFormat y excludes, y mantiene el orden documental en doc.items.
+  function parseGanttDoc(content) {
+    const doc = { dateFormat: "YYYY-MM-DD", excludes: [], items: [], tasks: [], sections: [] };
+    (content || "").split("\n").forEach((raw, idx) => {
+      const line = raw.trim();
+      if (!line || line.startsWith("%%")) return;
+      let m;
+      if ((m = line.match(/^dateFormat\s+(.+)$/i))) { doc.dateFormat = m[1].trim(); return; }
+      if ((m = line.match(/^excludes\s+(.+)$/i))) { doc.excludes = m[1].trim().split(/[,\s]+/).filter(Boolean); return; }
+      if ((m = line.match(/^section\s+(.+)$/i))) {
+        const sec = { name: m[1].trim(), lineIndex: idx };
+        doc.sections.push(sec);
+        doc.items.push({ type: "section", section: sec });
+        return;
+      }
+      if (/^(gantt|title|axisFormat|click|todayMarker|tickInterval|weekday|inclusiveEndDates|topAxis)\b/i.test(line)) return;
+      const colonIdx = line.indexOf(":");
+      if (colonIdx <= 0) return;
+      const label = line.slice(0, colonIdx).trim();
+      const tokens = line.slice(colonIdx + 1).split(",").map(s => s.trim()).filter(Boolean);
+      if (!tokens.length) return;
+      const flags = [];
+      const rest = [];
+      tokens.forEach(tk => {
+        if (STATUS_KEYWORDS.has(tk.toLowerCase())) flags.push(tk.toLowerCase());
+        else rest.push(tk);
+      });
+      let id = null;
+      let timeTokens = rest;
+      if (rest.length) {
+        const first = rest[0];
+        const looksLikeTime = /^\d/.test(first) || /^after\b/i.test(first) || /^until\b/i.test(first);
+        if (!looksLikeTime) { id = first; timeTokens = rest.slice(1); }
+      }
+      const task = { lineIndex: idx, indent: raw.match(/^\s*/)[0], label, flags, id, timeTokens };
+      doc.tasks.push(task);
+      doc.items.push({ type: "task", task });
+    });
+    return doc;
+  }
+
+  // Resuelve fechas concretas para cada tarea (start / endEx exclusivo),
+  // replicando las reglas de Mermaid: fecha explícita, "after id...", inicio
+  // implícito (fin de la tarea anterior), duración o fecha fin inclusiva.
+  // Varias pasadas para tolerar "after" con referencias hacia adelante.
+  function resolveGanttDoc(doc) {
+    const fmtObj = makeDateFormat(doc.dateFormat || "YYYY-MM-DD");
+    doc.fmtObj = fmtObj;
+    const isExcluded = makeExcluder(doc, fmtObj);
+    doc.isExcluded = isExcluded;
+    const byId = {};
+    doc.tasks.forEach(t => { if (t.id && !byId[t.id]) byId[t.id] = t; });
+
+    doc.tasks.forEach(t => {
+      const toks = t.timeTokens;
+      t.startType = "none";
+      t.endType = "none";
+      if (!toks.length) return;
+      const first = toks[0];
+      if (/^after\s+/i.test(first)) t.startType = "after";
+      else if (fmtObj.parse(first)) t.startType = "date";
+      else if (parseDurationTok(first) && toks.length === 1) { t.endType = "duration"; return; }
+      else t.startType = "unknown";
+      if (toks.length >= 2) {
+        const second = toks[1];
+        if (fmtObj.parse(second)) t.endType = "date";
+        else if (/^until\s+/i.test(second)) t.endType = "until";
+        else if (parseDurationTok(second)) t.endType = "duration";
+        else t.endType = "unknown";
+      }
+    });
+
+    function resolveOne(t, prevEndEx) {
+      const toks = t.timeTokens;
+      let start = null;
+      if (t.startType === "date") start = fmtObj.parse(toks[0]);
+      else if (t.startType === "after") {
+        const ids = toks[0].replace(/^after\s+/i, "").trim().split(/\s+/);
+        let best = null;
+        for (const id of ids) {
+          const ref = byId[id];
+          if (!ref || !ref.resolved || !ref.resolved.ok) return { ok: false, reason: 'no se pudo resolver "after ' + id + '"' };
+          if (!best || ref.resolved.endEx > best) best = ref.resolved.endEx;
+        }
+        start = new Date(best);
+      } else if (t.startType === "none") {
+        start = prevEndEx ? new Date(prevEndEx) : startOfDay(new Date());
+      } else {
+        return { ok: false, reason: "inicio no reconocido" };
+      }
+      if (!start || isNaN(start)) return { ok: false, reason: "fecha de inicio inválida" };
+      start = startOfDay(start);
+
+      let endEx = null;
+      if (t.endType === "date") {
+        const e = fmtObj.parse(toks[1]);
+        if (!e) return { ok: false, reason: "fecha de fin inválida" };
+        endEx = addDays(startOfDay(e), 1);
+      } else if (t.endType === "duration") {
+        const durTok = (t.startType === "none" && toks.length === 1) ? toks[0] : toks[1];
+        const dur = parseDurationTok(durTok);
+        if (!dur) return { ok: false, reason: "duración inválida" };
+        endEx = addWorkingDays(start, dur.days, isExcluded);
+      } else if (t.endType === "none") {
+        endEx = addWorkingDays(start, 1, isExcluded);
+      } else {
+        return { ok: false, reason: "sintaxis no soportada en la vista interactiva" };
+      }
+      if (endEx <= start) endEx = addDays(start, 1);
+      return { ok: true, start, endEx };
+    }
+
+    for (let pass = 0; pass < 3; pass++) {
+      let unresolved = 0;
+      let prevEndEx = null;
+      for (const t of doc.tasks) {
+        t.resolved = resolveOne(t, prevEndEx);
+        if (t.resolved.ok) prevEndEx = t.resolved.endEx;
+        else unresolved++;
+      }
+      if (!unresolved) break;
+    }
+    return doc;
+  }
+
+  // Reconstruye la línea Mermaid de una tarea tras un gesto de arrastre.
+  // Políticas: fechas explícitas se reemplazan; "after x" se conserva si el
+  // inicio no cambió realmente y se convierte a fecha fija si sí (con aviso);
+  // las duraciones se recalculan en días laborables respetando excludes;
+  // los milestones solo mueven su fecha de inicio.
+  function computeNewLine(doc, t, newStart, newEndEx, notes, opts) {
+    opts = opts || {};
+    const fmtObj = doc.fmtObj;
+    const isExcluded = doc.isExcluded;
+    if (isExcluded) {
+      let guard = 0;
+      while (isExcluded(newStart) && guard++ < 14) newStart = addDays(newStart, 1);
+      if (newEndEx <= newStart) newEndEx = addDays(newStart, 1);
+    }
+    const toks = t.timeTokens;
+    const r = (t.resolved && t.resolved.ok) ? t.resolved : null;
+    const startChanged = opts.forceStartExplicit || !r || +r.start !== +newStart;
+    const lenChanged = !r || diffDays(r.start, r.endEx) !== diffDays(newStart, newEndEx);
+    const isMilestone = t.flags.includes("milestone");
+    const newToks = [];
+
+    if (t.startType === "date") {
+      newToks.push(startChanged ? fmtObj.format(newStart) : toks[0]);
+    } else if (t.startType === "after" || t.startType === "none") {
+      if (startChanged) {
+        newToks.push(fmtObj.format(newStart));
+        if (t.startType === "after") notes.push('«' + t.label + '» dependía de «' + toks[0] + '» y ahora tiene fecha fija.');
+      } else if (t.startType === "after") {
+        newToks.push(toks[0]);
+      }
+    } else {
+      return null;
+    }
+
+    if (isMilestone) {
+      // Un milestone es un punto: solo se mueve; el resto de tokens queda igual.
+      for (let i = 1; i < toks.length; i++) newToks.push(toks[i]);
+    } else if (t.endType === "date") {
+      newToks.push(fmtObj.format(addDays(newEndEx, -1)));
+    } else if (t.endType === "duration") {
+      const orig = (t.startType === "none" && toks.length === 1) ? toks[0] : toks[1];
+      const n = countWorkingDays(newStart, newEndEx, isExcluded);
+      newToks.push(/w$/i.test(orig) && n % 7 === 0 ? (n / 7) + "w" : n + "d");
+    } else if (t.endType === "none") {
+      if (lenChanged) newToks.push(countWorkingDays(newStart, newEndEx, isExcluded) + "d");
+    } else {
+      return null;
+    }
+
+    const parts = t.flags.slice();
+    if (t.id) parts.push(t.id);
+    newToks.forEach(x => parts.push(x));
+    return t.indent + t.label + " :" + parts.join(", ");
+  }
+
+  // [gantt-core-end]
+
+  function buildInteractiveRows(doc, project, isGeneral) {
+    resolveGanttDoc(doc);
+    let minStart = null;
+    doc.tasks.forEach(t => {
+      if (t.resolved.ok && (!minStart || t.resolved.start < minStart)) minStart = t.resolved.start;
+    });
+    const fallbackStart = minStart || startOfDay(new Date());
+    const rows = [];
+    const usedIds = new Set();
+    // id mermaid → id de fila visible: la propia tarea o, si su sección está
+    // colapsada, la fila de resumen de esa sección (para redirigir flechas).
+    const rowIdByTaskId = {};
+    let curCollapsed = false;
+    let curSectionRow = null;
+    doc.items.forEach((item, i) => {
+      if (item.type === "section") {
+        const collapsed = collapsedSections.has(item.section.name);
+        curCollapsed = collapsed;
+        // Estadísticas de la sección (hasta la siguiente): rango de fechas,
+        // conteos por estado y avance ponderado por duración laborable.
+        let s = null, e = null, count = 0, done = 0, act = 0, crit = 0, mile = 0;
+        let totalDays = 0, doneDays = 0, activeDays = 0;
+        for (let j = i + 1; j < doc.items.length; j++) {
+          if (doc.items[j].type === "section") break;
+          const tt = doc.items[j].task;
+          count++;
+          const isDone = tt.flags.includes("done");
+          const isActive = tt.flags.includes("active");
+          if (isDone) done++;
+          if (isActive) act++;
+          if (tt.flags.includes("crit")) crit++;
+          if (tt.flags.includes("milestone")) mile++;
+          const rt = tt.resolved;
+          if (!rt.ok) continue;
+          if (!s || rt.start < s) s = rt.start;
+          if (!e || rt.endEx > e) e = rt.endEx;
+          const days = countWorkingDays(rt.start, rt.endEx, doc.isExcluded);
+          totalDays += days;
+          if (isDone) doneDays += days;
+          else if (isActive) activeDays += days;
+        }
+        // Mismo criterio que las barras individuales: done=100%, active=40%.
+        const progressPct = totalDays ? Math.round(100 * (doneDays + 0.4 * activeDays) / totalDays) : 0;
+        curSectionRow = {
+          id: "__sec" + i,
+          name: item.section.name,
+          start: fmtISO(s || fallbackStart),
+          end: fmtISO(addDays(e || addDays(fallbackStart, 1), -1)),
+          progress: collapsed ? progressPct : 0,
+          dependencies: "",
+          custom_class: "gantt-row-static gantt-row-section"
+            + (collapsed ? " gantt-row-collapsed" : "")
+            + (collapsed && crit ? " gantt-row-has-crit" : ""),
+          __section: item.section,
+          __collapsed: collapsed,
+          __count: count,
+          __stats: { count, done, act, crit, mile, totalDays, progressPct, s, e },
+          __hiddenDeps: []
+        };
+        rows.push(curSectionRow);
+        return;
+      }
+      const t = item.task;
+      const afterIds = t.startType === "after" ? t.timeTokens[0].replace(/^after\s+/i, "").trim().split(/\s+/) : [];
+      if (curCollapsed) {
+        // Tarea oculta: sus flechas entrantes y salientes pasan a su sección.
+        if (t.id && !(t.id in rowIdByTaskId)) rowIdByTaskId[t.id] = curSectionRow.id;
+        curSectionRow.__hiddenDeps.push(...afterIds);
+        return;
+      }
+      const ok = t.resolved.ok;
+      let rowId = (t.id && !usedIds.has(t.id)) ? t.id : "__row" + i;
+      usedIds.add(rowId);
+      if (t.id && !(t.id in rowIdByTaskId)) rowIdByTaskId[t.id] = rowId;
+      const classes = [];
+      if (!ok) classes.push("gantt-row-static", "gantt-row-invalid");
+      if (t.flags.includes("milestone")) classes.push("gantt-row-milestone");
+      if (t.flags.includes("crit")) classes.push("gantt-row-crit");
+      if (t.flags.includes("done")) classes.push("gantt-row-done");
+      else if (t.flags.includes("active")) classes.push("gantt-row-active");
+      const start = ok ? t.resolved.start : fallbackStart;
+      const endEx = ok ? t.resolved.endEx : addDays(fallbackStart, 1);
+      rows.push({
+        id: rowId,
+        name: t.label,
+        start: fmtISO(start),
+        // Frappe interpreta end como día INCLUSIVO (le suma 24h internamente).
+        end: fmtISO(addDays(endEx, -1)),
+        progress: t.flags.includes("done") ? 100 : (t.flags.includes("active") ? 40 : 0),
+        dependencies: "",
+        custom_class: classes.join(" "),
+        __task: t,
+        __afterIds: afterIds
+      });
+    });
+    // Segunda pasada, con el mapa completo: cada "after x" apunta a la fila
+    // de x o, si x está dentro de una sección colapsada, a la fila de resumen
+    // de esa sección; las dependencias de tareas ocultas se agregan a su
+    // sección. Ids inexistentes y referencias internas se descartan.
+    rows.forEach(r => {
+      const srcIds = r.__afterIds || r.__hiddenDeps || [];
+      const mapped = [];
+      srcIds.forEach(id => {
+        const rid = rowIdByTaskId[id];
+        if (rid && rid !== r.id && !mapped.includes(rid)) mapped.push(rid);
+      });
+      r.dependencies = mapped.join(", ");
+    });
+    return rows;
+  }
+
+  function buildTaskListRow(row, project, isGeneral, doc) {
+    const div = document.createElement("div");
+    if (row.__section) {
+      div.className = "gtl-row section";
+      const chevron = document.createElement("span");
+      chevron.className = "gtl-chevron";
+      chevron.textContent = row.__collapsed ? "▶" : "▼";
+      div.appendChild(chevron);
+      const name = document.createElement("span");
+      name.className = "gtl-name";
+      name.textContent = row.__section.name;
+      div.appendChild(name);
+      const count = document.createElement("span");
+      count.className = "gtl-count";
+      count.textContent = "(" + row.__count + ")";
+      div.appendChild(count);
+      const st = row.__stats;
+      if (row.__collapsed && st.count) {
+        // Resumen compacto en la fila: avance, completadas y críticas.
+        const info = document.createElement("span");
+        info.className = "gtl-info";
+        info.appendChild(document.createTextNode(st.progressPct + "% · ✔" + st.done + "/" + st.count));
+        if (st.crit) {
+          const warn = document.createElement("span");
+          warn.className = "crit";
+          warn.textContent = " ⚠" + st.crit;
+          warn.title = st.crit + " tarea(s) crítica(s) dentro de esta sección";
+          info.appendChild(warn);
+        }
+        div.appendChild(info);
+        div.title = "Sección colapsada — " + st.count + " tareas · avance " + st.progressPct + "%"
+          + " · " + st.done + " completada(s) · " + st.act + " activa(s) · " + st.crit + " crítica(s) · " + st.mile + " hito(s)"
+          + (st.s ? " · " + fmtISO(st.s) + " → " + fmtISO(addDays(st.e, -1)) + " · " + st.totalDays + " días laborables" : "")
+          + " · clic para expandir";
+      } else {
+        div.title = "Colapsar sección a una fila de resumen";
+      }
+      div.addEventListener("click", () => {
+        if (collapsedSections.has(row.__section.name)) collapsedSections.delete(row.__section.name);
+        else collapsedSections.add(row.__section.name);
+        renderInteractiveView();
+      });
+      div.dataset.label = row.__section.name;
+      return div;
+    }
+    const t = row.__task;
+    div.className = "gtl-row task" + (t.resolved.ok ? "" : " invalid");
+    div.dataset.label = t.label;
+    const dot = document.createElement("span");
+    const flagClass = t.flags.includes("milestone") ? "milestone" : t.flags.includes("crit") ? "crit" : t.flags.includes("done") ? "done" : t.flags.includes("active") ? "active" : "";
+    dot.className = "gtl-dot" + (flagClass ? " " + flagClass : "");
+    div.appendChild(dot);
+    const name = document.createElement("span");
+    name.className = "gtl-name";
+    name.textContent = t.label;
+    div.appendChild(name);
+    if (t.resolved.ok) {
+      const days = diffDays(t.resolved.start, t.resolved.endEx);
+      div.title = fmtISO(t.resolved.start) + " → " + fmtISO(addDays(t.resolved.endEx, -1)) + " · " + days + "d" + (t.flags.length ? " · " + t.flags.join(", ") : "");
+    } else {
+      div.title = "No editable aquí: " + t.resolved.reason + ". Edítala en el panel de texto.";
+    }
+    if (isGeneral && t.id && project.general.links[t.id] && project.subprojects[project.general.links[t.id]]) {
+      const btn = document.createElement("button");
+      btn.className = "gtl-link-btn";
+      btn.textContent = "🔗";
+      btn.title = "Abrir subproyecto vinculado";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSubproject(project.id, project.general.links[t.id]);
+      });
+      div.appendChild(btn);
+    }
+    div.addEventListener("click", () => openTaskEditModal(t));
+    return div;
+  }
+
+  function renderInteractiveView() {
+    const chart = document.getElementById("ganttChart");
+    const listInner = document.getElementById("ganttTasklistInner");
+    const project = getActiveProject();
+    ganttInstance = null;
+    if (!project) { chart.innerHTML = ""; listInner.innerHTML = ""; return; }
+    if (typeof Gantt === "undefined") {
+      chart.innerHTML = '<div class="interactive-msg">No se pudo cargar Frappe Gantt desde el CDN (¿sin conexión?). Usa la vista Mermaid.</div>';
+      listInner.innerHTML = "";
+      return;
+    }
+    const isGeneral = !getCurrentSubprojectId();
+    const doc = parseGanttDoc(getCurrentContent());
+    const rows = buildInteractiveRows(doc, project, isGeneral);
+
+    const chkGroup = document.getElementById("chkGroupSections");
+    chkGroup.disabled = !doc.sections.length;
+    chkGroup.checked = doc.sections.length > 0 && doc.sections.every(s => collapsedSections.has(s.name));
+
+    listInner.innerHTML = "";
+    const header = document.createElement("div");
+    header.className = "gtl-header";
+    header.textContent = "Tareas (" + doc.tasks.length + ")";
+    listInner.appendChild(header);
+    rows.forEach(row => listInner.appendChild(buildTaskListRow(row, project, isGeneral, doc)));
+
+    chart.innerHTML = "";
+    if (!rows.length) {
+      chart.innerHTML = '<div class="interactive-msg">No hay tareas todavía. Usa «＋ Tarea» o escribe en el editor de la izquierda.</div>';
+      return;
+    }
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chart.appendChild(svg);
+    ganttInstance = new Gantt(svg, rows, {
+      view_mode: ganttScale,
+      view_modes: ["Day", "Week", "Month"],
+      bar_height: 20,
+      padding: 18,
+      header_height: 50,
+      language: "es",
+      on_click: task => { if (task.__task) openTaskEditModal(task.__task); },
+      on_date_change: (task, start, end) => {
+        if (!task.__task) return;
+        // Frappe dispara un evento por cada barra afectada (la arrastrada y
+        // sus dependientes) en el mismo tick; se acumulan y aplican juntas
+        // sobre un único snapshot del texto.
+        pendingBarChanges.push({ lineIndex: task.__task.lineIndex, start, end });
+        clearTimeout(pendingFlushTimer);
+        pendingFlushTimer = setTimeout(flushBarChanges, 10);
+      },
+      on_progress_change: (task, progress) => handleProgressChange(task, progress)
+    });
+    // Vertical: lo maneja #interactiveWrap (columnas siempre alineadas).
+    // Horizontal: vive dentro de .gantt-container; solo se preserva su X.
+    const scroller = chart.querySelector(".gantt-container");
+    if (interactiveScroll) {
+      if (scroller) scroller.scrollLeft = interactiveScroll.left;
+      document.getElementById("interactiveWrap").scrollTop = interactiveScroll.top;
+    }
+    const stickySvg = buildStickyHeader(chart, svg, scroller);
+    const syncStickyHeader = () => {
+      if (stickySvg && scroller) stickySvg.style.transform = "translateX(" + (-scroller.scrollLeft) + "px)";
+    };
+    syncStickyHeader();
+    if (scroller) {
+      scroller.addEventListener("scroll", () => {
+        interactiveScroll = interactiveScroll || { left: 0, top: 0 };
+        interactiveScroll.left = scroller.scrollLeft;
+        syncStickyHeader();
+      });
+    }
+  }
+
+  // Clona la cabecera del SVG de Frappe (rect de fondo, columna de "hoy" y
+  // los textos de fecha) en un svg propio dentro de un contenedor sticky, de
+  // modo que las fechas queden fijas arriba mientras se hace scroll vertical.
+  // El desplazamiento horizontal se replica vía translateX.
+  function buildStickyHeader(chart, mainSvg, scroller) {
+    const holder = document.createElement("div");
+    holder.id = "ganttStickyHeader";
+    const clone = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    clone.setAttribute("class", "gantt");
+    let width = mainSvg.getAttribute("width");
+    if (!width || width === "100%") width = scroller ? scroller.scrollWidth : 0;
+    clone.setAttribute("width", width);
+    clone.setAttribute("height", 60);
+    const headerRect = mainSvg.querySelector(".grid-header");
+    if (headerRect) clone.appendChild(headerRect.cloneNode(true));
+    const todayRect = mainSvg.querySelector(".today-highlight");
+    if (todayRect) clone.appendChild(todayRect.cloneNode(true)); // se recorta a los 60px del holder
+    const dateLayer = mainSvg.querySelector(".date");
+    if (dateLayer) clone.appendChild(dateLayer.cloneNode(true));
+    holder.appendChild(clone);
+    chart.insertBefore(holder, chart.firstChild);
+    return clone;
+  }
+
+  function flushBarChanges() {
+    const changes = pendingBarChanges;
+    pendingBarChanges = [];
+    if (!changes.length) return;
+    const project = getActiveProject();
+    if (!project) return;
+    const original = getCurrentContent();
+    const doc = resolveGanttDoc(parseGanttDoc(original));
+    const notes = [];
+    const lines = original.split("\n");
+    const deferred = []; // tareas con inicio "after"/implícito: se evalúan tras aplicar el resto
+
+    for (const ch of changes) {
+      const t = doc.tasks.find(x => x.lineIndex === ch.lineIndex);
+      if (!t) continue;
+      const newStart = roundToDay(ch.start);
+      let newEndEx = roundToDay(ch.end);
+      if (diffDays(newStart, newEndEx) < 1) newEndEx = addDays(newStart, 1);
+      if (t.startType === "after" || t.startType === "none") {
+        deferred.push({ lineIndex: t.lineIndex, newStart, newEndEx });
+        continue;
+      }
+      const line = computeNewLine(doc, t, newStart, newEndEx, notes);
+      if (line !== null) lines[t.lineIndex] = line;
+    }
+
+    let content2 = lines.join("\n");
+    if (deferred.length) {
+      // Con el texto ya actualizado, si la posición reportada coincide con lo
+      // que la dependencia produce por sí sola, no hay nada que escribir (fue
+      // Frappe moviendo a los dependientes junto a su padre). Solo si difiere
+      // se fija la fecha o se ajusta la duración.
+      const doc2 = resolveGanttDoc(parseGanttDoc(content2));
+      const lines2 = content2.split("\n");
+      for (const ch of deferred) {
+        const t2 = doc2.tasks.find(x => x.lineIndex === ch.lineIndex);
+        if (!t2) continue;
+        const r = t2.resolved;
+        const startChanged = !r.ok || +r.start !== +ch.newStart;
+        const lenChanged = !r.ok || diffDays(r.start, r.endEx) !== diffDays(ch.newStart, ch.newEndEx);
+        if (!startChanged && !lenChanged) continue;
+        const line = computeNewLine(doc2, t2, ch.newStart, ch.newEndEx, notes, { forceStartExplicit: startChanged });
+        if (line !== null) lines2[t2.lineIndex] = line;
+      }
+      content2 = lines2.join("\n");
+    }
+
+    if (content2 === original) {
+      // Nada que escribir: re-render para deshacer cualquier movimiento visual.
+      renderInteractiveView();
+      return;
+    }
+    lastSnapshot = { projectId: project.id, subId: getCurrentSubprojectId(), content: original };
+    applyInteractiveContent(content2, changes[0].lineIndex, notes.length ? notes : ["Tarea actualizada en el texto Mermaid."]);
+  }
+
+  function handleProgressChange(row, progress) {
+    if (!row.__task) return;
+    const project = getActiveProject();
+    if (!project) return;
+    const original = getCurrentContent();
+    const doc = parseGanttDoc(original);
+    const t = doc.tasks.find(x => x.lineIndex === row.__task.lineIndex);
+    if (!t) return;
+    const flags = t.flags.filter(f => f !== "done" && f !== "active");
+    let msg;
+    if (progress >= 90) { flags.push("done"); msg = "marcada como completada (done)"; }
+    else if (progress > 10) { flags.push("active"); msg = "marcada en curso (active)"; }
+    else msg = "sin estado (se quitaron done/active)";
+    if (flags.slice().sort().join(",") === t.flags.slice().sort().join(",")) {
+      renderInteractiveView();
+      return;
+    }
+    const parts = flags.slice();
+    if (t.id) parts.push(t.id);
+    t.timeTokens.forEach(x => parts.push(x));
+    const lines = original.split("\n");
+    lines[t.lineIndex] = t.indent + t.label + " :" + parts.join(", ");
+    lastSnapshot = { projectId: project.id, subId: getCurrentSubprojectId(), content: original };
+    applyInteractiveContent(lines.join("\n"), t.lineIndex, ["«" + t.label + "» " + msg + "."]);
+  }
+
+  // Actualiza el editor sin perder el scroll y destella la línea modificada,
+  // para que se VEA el cambio reflejado en el texto Mermaid.
+  function setEditorContentPreserveView(content, flashLine) {
+    const scrollInfo = cm.getScrollInfo();
+    cm.setValue(content);
+    cm.scrollTo(scrollInfo.left, scrollInfo.top);
+    if (flashLine !== null && flashLine !== undefined && flashLine < cm.lineCount()) {
+      cm.addLineClass(flashLine, "background", "cm-flash-line");
+      setTimeout(() => { try { cm.removeLineClass(flashLine, "background", "cm-flash-line"); } catch (e) {} }, 1600);
+    }
+  }
+
+  function applyInteractiveContent(newContent, flashLine, notes) {
+    const project = getActiveProject();
+    if (!project) return;
+    const subId = getCurrentSubprojectId();
+    const now = Date.now();
+    if (subId && project.subprojects[subId]) {
+      project.subprojects[subId].content = newContent;
+      project.subprojects[subId].updatedAt = now;
+    } else {
+      project.general.content = newContent;
+    }
+    project.updatedAt = now;
+    markSaving();
+    saveState();
+    debouncedMarkSaved();
+    setEditorContentPreserveView(newContent, flashLine);
+    renderInteractiveView();
+    showToast((notes || []).join(" "), lastSnapshot);
+  }
+
+  function restoreSnapshot(snap) {
+    const project = state.projects[snap.projectId];
+    if (!project) return;
+    if (snap.subId) {
+      if (!project.subprojects[snap.subId]) return;
+      project.subprojects[snap.subId].content = snap.content;
+      project.subprojects[snap.subId].updatedAt = Date.now();
+    } else {
+      project.general.content = snap.content;
+    }
+    project.updatedAt = Date.now();
+    saveState();
+    if (state.activeProjectId === snap.projectId && getCurrentSubprojectId() === (snap.subId || null)) {
+      setEditorContentPreserveView(snap.content, null);
+      renderPreview();
+    }
+  }
+
+  function showToast(message, snapshot) {
+    const cont = document.getElementById("toastContainer");
+    const el = document.createElement("div");
+    el.className = "toast";
+    const span = document.createElement("span");
+    span.textContent = message;
+    el.appendChild(span);
+    if (snapshot) {
+      const btn = document.createElement("button");
+      btn.textContent = "Deshacer";
+      btn.addEventListener("click", () => { restoreSnapshot(snapshot); el.remove(); });
+      el.appendChild(btn);
+    }
+    cont.appendChild(el);
+    while (cont.children.length > 3) cont.firstChild.remove();
+    setTimeout(() => el.remove(), 6000);
+  }
+
+  function pulseInteractiveRow(label) {
+    function findRow() {
+      return Array.from(document.querySelectorAll("#ganttTasklistInner .gtl-row"))
+        .find(r => r.dataset.label === label) || null;
+    }
+    let row = findRow();
+    if (!row) {
+      // Puede estar oculta dentro de una sección colapsada: expandirla primero.
+      const doc = parseGanttDoc(getCurrentContent());
+      let sectionName = null, current = null;
+      doc.items.forEach(item => {
+        if (item.type === "section") current = item.section.name;
+        else if (item.task.label === label && sectionName === null) sectionName = current;
+      });
+      if (sectionName && collapsedSections.has(sectionName)) {
+        collapsedSections.delete(sectionName);
+        renderInteractiveView();
+        row = findRow();
+      }
+    }
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.remove("flash");
+    void row.offsetWidth;
+    row.classList.add("flash");
+  }
+
+  async function addTaskInteractive() {
+    const project = getActiveProject();
+    if (!project) return;
+    const original = getCurrentContent();
+    const doc = resolveGanttDoc(parseGanttDoc(original));
+    const ids = new Set(doc.tasks.map(t => t.id).filter(Boolean));
+    let n = 1;
+    while (ids.has("t" + n)) n++;
+    // La nueva tarea arranca donde termina la última, para continuar el flujo.
+    let lastEnd = null;
+    doc.tasks.forEach(t => {
+      if (t.resolved && t.resolved.ok && (!lastEnd || t.resolved.endEx > lastEnd)) lastEnd = t.resolved.endEx;
+    });
+    const startTok = doc.fmtObj.format(lastEnd || startOfDay(new Date()));
+    const lines = original.split("\n");
+    let insertAt = lines.length;
+    while (insertAt > 0 && !lines[insertAt - 1].trim()) insertAt--;
+    const newLines = [];
+    if (!doc.sections.length) newLines.push("    section Tareas");
+    newLines.push("    Nueva tarea :t" + n + ", " + startTok + ", 3d");
+    lines.splice(insertAt, 0, ...newLines);
+    const content2 = lines.join("\n");
+    const newLineIndex = insertAt + newLines.length - 1;
+    lastSnapshot = { projectId: project.id, subId: getCurrentSubprojectId(), content: original };
+    applyInteractiveContent(content2, newLineIndex, ["Tarea añadida al final del diagrama."]);
+    // Abrir el modal directamente para ponerle nombre y fechas.
+    const doc2 = parseGanttDoc(content2);
+    const t2 = doc2.tasks.find(x => x.lineIndex === newLineIndex);
+    if (t2) openTaskEditModal(t2);
+  }
+
+  function setPreviewMode(mode) {
+    previewMode = mode;
+    localStorage.setItem(PREVIEW_MODE_KEY, mode);
+    updatePreviewModeUI();
+    renderPreview();
+  }
+
+  function updatePreviewModeUI() {
+    const isInt = previewMode === "interactive";
+    document.getElementById("preview-wrap").classList.toggle("hidden", isInt);
+    document.getElementById("interactiveWrap").classList.toggle("hidden", !isInt);
+    document.getElementById("interactiveControls").classList.toggle("hidden", !isInt);
+    document.getElementById("mermaidControls").classList.toggle("hidden", isInt);
+    document.getElementById("modeBtnInteractive").classList.toggle("active", isInt);
+    document.getElementById("modeBtnMermaid").classList.toggle("active", !isInt);
+  }
+
+  document.getElementById("modeBtnInteractive").addEventListener("click", () => setPreviewMode("interactive"));
+  document.getElementById("modeBtnMermaid").addEventListener("click", () => setPreviewMode("mermaid"));
+  document.getElementById("btnAddTask").addEventListener("click", addTaskInteractive);
+  document.getElementById("interactiveWrap").addEventListener("scroll", (e) => {
+    interactiveScroll = interactiveScroll || { left: 0, top: 0 };
+    interactiveScroll.top = e.target.scrollTop;
+  });
+  document.getElementById("chkGroupSections").addEventListener("change", (e) => {
+    const doc = parseGanttDoc(getCurrentContent());
+    if (e.target.checked) doc.sections.forEach(s => collapsedSections.add(s.name));
+    else collapsedSections.clear();
+    renderInteractiveView();
+  });
+  const ganttViewModeSel = document.getElementById("ganttViewModeSel");
+  ganttViewModeSel.value = ganttScale;
+  ganttViewModeSel.addEventListener("change", () => {
+    ganttScale = ganttViewModeSel.value;
+    localStorage.setItem(GANTT_SCALE_KEY, ganttScale);
+    // Re-render completo (y no change_view_mode) para reconstruir también la
+    // cabecera fija clonada, que quedaría obsoleta al regenerarse el SVG.
+    interactiveScroll = null;
+    renderInteractiveView();
+  });
+
+  // ---------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------
+  fullRefresh();
+})();
+</script>
+</body>
+</html>
