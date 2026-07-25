@@ -21,6 +21,8 @@
 ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
 ```
 
+**▶ Demo en vivo: [robrstein.github.io/mmd-gantt-sutdio](https://robrstein.github.io/mmd-gantt-sutdio/)**
+
 Visor y editor de diagramas de Gantt escritos en sintaxis [Mermaid](https://mermaid.js.org/syntax/gantt.html), pensado para gestionar proyectos con **un gantt general y múltiples subproyectos de detalle**, todo en el navegador sin backend ni build step.
 
 ## Idea
@@ -72,7 +74,7 @@ Ver el detalle completo, organizado por fases, en [`roadmap.md`](./roadmap.md). 
 
 ## Uso
 
-Aún no disponible — en construcción según el roadmap.
+Abrir la versión publicada en [https://robrstein.github.io/mmd-gantt-sutdio/](https://robrstein.github.io/mmd-gantt-sutdio/), o clonar el repo y abrir [`index.html`](./index.html) directo en el navegador — sin instalación ni build step.
 
 ## Licencia
 
