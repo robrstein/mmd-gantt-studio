@@ -21,7 +21,7 @@
 ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
 ```
 
-**▶ Demo en vivo: [robrstein.github.io/mmd-gantt-sutdio](https://robrstein.github.io/mmd-gantt-sutdio/)**
+**▶ Demo en vivo: [robrstein.github.io/mmd-gantt-studio](https://robrstein.github.io/mmd-gantt-studio/)**
 
 Visor y editor de diagramas de Gantt escritos en sintaxis [Mermaid](https://mermaid.js.org/syntax/gantt.html), pensado para gestionar proyectos con **un gantt general y múltiples subproyectos de detalle**, todo en el navegador sin backend ni build step.
 
