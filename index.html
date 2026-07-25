@@ -160,7 +160,30 @@
     min-width: 0;
   }
   #editorPane { flex: 0 0 50%; display: flex; flex-direction: column; min-width: 0; }
-  #previewPane { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  #previewPane { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; position: relative; }
+  #minimap {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    width: 170px;
+    height: 115px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-bg);
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    overflow: hidden;
+    cursor: pointer;
+    z-index: 30;
+  }
+  #minimap.hidden { display: none; }
+  #minimapContent { width: 100%; height: 100%; }
+  #minimapContent svg { width: 100%; height: 100%; display: block; }
+  #minimapViewport {
+    position: absolute;
+    border: 2px solid var(--accent);
+    background: rgba(47, 111, 235, .15);
+    pointer-events: none;
+  }
   #resizer {
     flex: 0 0 6px;
     background: var(--border);
@@ -234,8 +257,36 @@
     cursor: grab;
   }
   #preview-wrap.panning { cursor: grabbing; }
-  #preview { display: inline-block; }
+  #preview { display: inline-block; position: relative; }
   #preview svg { max-width: none; }
+  #notesLayer { position: absolute; inset: 0; pointer-events: none; }
+  .note-postit {
+    position: absolute;
+    width: 170px;
+    min-height: 90px;
+    padding: 6px;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: auto;
+    color: #222;
+  }
+  .note-postit-header { display: flex; align-items: center; justify-content: space-between; cursor: move; }
+  .note-postit-colors { display: flex; gap: 3px; }
+  .note-postit-color-dot { width: 11px; height: 11px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(0,0,0,.25); }
+  .note-postit .note-del { border: none; background: transparent; cursor: pointer; font-size: 12px; color: #222; line-height: 1; }
+  .note-postit textarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    outline: none;
+  }
   #preview text.linked-section { cursor: pointer; }
   #preview text.linked-section:hover { text-decoration: underline; }
   @keyframes cellPulse { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 6px var(--accent)); } }
@@ -449,6 +500,9 @@
   #ganttViewModeSel { padding: 2px 6px; font-size: 12px; }
   .chk-mini { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim); cursor: pointer; white-space: nowrap; user-select: none; }
   .chk-mini input { cursor: pointer; }
+  .bookmark-slots { display: flex; gap: 2px; }
+  .bookmark-slots .bookmark-slot { padding: 2px 6px; opacity: .5; }
+  .bookmark-slots .bookmark-slot.has-data { opacity: 1; border-color: var(--accent); color: var(--accent); font-weight: 700; }
   /* Toasts (avisos con Deshacer) */
   #toastContainer { position: fixed; right: 16px; bottom: 42px; display: flex; flex-direction: column; gap: 8px; z-index: 80; }
   @keyframes toastIn { from { transform: translateY(8px); opacity: 0; } }
@@ -470,6 +524,26 @@
   .toast button { padding: 3px 8px; font-size: 12px; flex-shrink: 0; }
   /* Flash de la línea recién modificada en el editor de texto */
   .cm-flash-line { background: var(--accent-dim) !important; }
+  /* Modo presentación: pantalla completa con solo el diagrama activo */
+  body.presentation-mode header,
+  body.presentation-mode .breadcrumb,
+  body.presentation-mode .mobile-tabbar,
+  body.presentation-mode aside.sidebar,
+  body.presentation-mode #editorPane,
+  body.presentation-mode #resizer,
+  body.presentation-mode footer,
+  body.presentation-mode .pane-header {
+    display: none !important;
+  }
+  body.presentation-mode #previewPane { flex: 1 1 100%; }
+  #btnExitPresentation {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  }
+  #btnExitPresentation.hidden { display: none; }
   @media (max-width: 767px) {
     .mobile-tabbar { display: flex; }
     header { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 10px; }
@@ -498,6 +572,7 @@
   <div class="group">
     <select id="projectSelect" title="Proyecto activo"></select>
     <button id="btnNewProject" title="Nuevo proyecto">+ Proyecto</button>
+    <button id="btnNewFromTemplate" title="Nuevo proyecto a partir de una plantilla">+ Plantilla</button>
     <button id="btnRenameProject" title="Renombrar proyecto">✎</button>
     <button id="btnDuplicateProject" class="icon-only" title="Duplicar proyecto completo">⎘</button>
     <button id="btnDeleteProject" class="icon-only" title="Eliminar proyecto">🗑</button>
@@ -508,11 +583,14 @@
   </div>
   <div class="group">
     <button id="btnLinks" title="Vincular tareas/secciones del gantt general a subproyectos">🔗 Vincular</button>
+    <button id="btnCritical" title="Resumen de tareas críticas (crit) del proyecto">⚠ Crítico</button>
   </div>
   <div class="group">
     <button id="btnImportMd" title="Importar un diagrama .md individual">Importar .md</button>
     <button id="btnImportFull" title="Importar un archivo .md con varios diagramas (como gantt.md)">Importar proyecto (.md)</button>
     <button id="btnExportMd" title="Exportar el diagrama activo a .md">Exportar .md</button>
+    <button id="btnExportSvg" title="Exportar el diagrama activo como imagen SVG">Exportar SVG</button>
+    <button id="btnExportPng" title="Exportar el diagrama activo como imagen PNG">Exportar PNG</button>
   </div>
   <div class="group">
     <button id="btnExportBackup" title="Exportar todos los proyectos (localStorage) a .json">Exportar backup</button>
@@ -520,6 +598,8 @@
   </div>
   <div class="spacer"></div>
   <div class="group">
+    <select id="diagramThemeSel" title="Paleta de colores del diagrama (independiente de claro/oscuro)"></select>
+    <button id="btnPresentation" class="icon-only" title="Modo presentación (pantalla completa solo con el diagrama) — atajo: P">⛶</button>
     <button id="btnTheme" class="icon-only" title="Cambiar tema claro/oscuro">🌙</button>
   </div>
   <input type="file" id="fileImportMd" class="hidden-input" accept=".md,text/markdown">
@@ -549,6 +629,7 @@
         <span id="editorLabel">Editor (Mermaid)</span>
         <div class="pane-header-actions">
           <span class="status-indicator"><span class="status-dot saved" id="statusDot"></span><span id="statusText">Guardado</span></span>
+          <button id="btnHistory" class="tbtn-mini" title="Historial de versiones de esta vista">🕒 Historial</button>
           <button id="btnDuplicateSubproject" class="tbtn-mini" title="Duplicar este subproyecto">⎘ Duplicar</button>
         </div>
       </div>
@@ -560,6 +641,7 @@
       <div class="pane-header">
         <span>Vista previa</span>
         <div class="pane-header-actions">
+          <button id="btnSectionsFilter" class="tbtn-mini" title="Mostrar/ocultar secciones del diagrama activo">👁 Secciones</button>
           <span id="interactiveControls" class="pane-header-actions">
             <label class="chk-mini" title="Colapsar todas las secciones a una fila de resumen (también puedes colapsar cada sección con su flecha ▶ en la tabla)"><input type="checkbox" id="chkGroupSections"> Agrupar secciones</label>
             <select id="ganttViewModeSel" title="Escala de tiempo">
@@ -574,6 +656,14 @@
             <span id="zoomLabel">100%</span>
             <button id="btnZoomIn" class="tbtn-mini" title="Acercar (Ctrl+rueda)">＋</button>
             <button id="btnZoomFit" class="tbtn-mini" title="Restablecer zoom">⤢</button>
+            <button id="btnMinimapToggle" class="tbtn-mini" title="Mostrar/ocultar minimapa">🗺</button>
+            <button id="btnAddNote" class="tbtn-mini" title="Añadir una nota/post-it libre sobre el diagrama">🗒＋</button>
+            <span class="bookmark-slots" id="bookmarkSlots" title="Vistas guardadas: clic para ir, Shift+clic para guardar la posición/zoom actual aquí">
+              <button class="tbtn-mini bookmark-slot" data-slot="0">1</button>
+              <button class="tbtn-mini bookmark-slot" data-slot="1">2</button>
+              <button class="tbtn-mini bookmark-slot" data-slot="2">3</button>
+              <button class="tbtn-mini bookmark-slot" data-slot="3">4</button>
+            </span>
           </span>
           <div class="seg" id="previewModeSeg">
             <button id="modeBtnInteractive" title="Editor visual: arrastra las barras para mover tareas, estira los bordes para cambiar la duración, clic para editar">🖱 Interactiva</button>
@@ -581,7 +671,11 @@
           </div>
         </div>
       </div>
-      <div id="preview-wrap"><div id="preview"></div></div>
+      <div id="preview-wrap"><div id="preview"><div id="notesLayer"></div></div></div>
+      <div id="minimap" class="hidden" title="Clic para saltar a esa parte del diagrama">
+        <div id="minimapContent"></div>
+        <div id="minimapViewport"></div>
+      </div>
       <div id="interactiveWrap" class="hidden">
         <div id="ganttTasklist"><div id="ganttTasklistInner"></div></div>
         <div id="ganttChart"></div>
@@ -595,9 +689,11 @@
   </div>
 </div>
 
+<button id="btnExitPresentation" class="hidden">✕ Salir de presentación (Esc)</button>
+
 <div id="toastContainer"></div>
 
-<footer>Todo se guarda localmente en tu navegador (localStorage). Nada se envía a ningún servidor. Vista interactiva: arrastra una barra para moverla, estira sus bordes para cambiar la duración, clic para editar. Atajos: <kbd>Ctrl+S</kbd> guardar, <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Shift+Z</kbd> deshacer/rehacer en el editor, <kbd>Esc</kbd> cerrar diálogos.</footer>
+<footer>Todo se guarda localmente en tu navegador (localStorage). Nada se envía a ningún servidor. Vista interactiva: arrastra una barra para moverla, estira sus bordes para cambiar la duración, clic para editar. Atajos: <kbd>Ctrl+S</kbd> guardar, <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Shift+Z</kbd> deshacer/rehacer en el editor, <kbd>P</kbd> modo presentación, <kbd>Esc</kbd> cerrar diálogos / salir de presentación.</footer>
 
 <!-- Modal genérico (prompt/confirm/alert) -->
 <div class="modal-overlay hidden" id="genModalOverlay">
@@ -625,6 +721,55 @@
     </table>
     <div class="modal-actions">
       <button id="btnCloseLinks" class="primary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de historial de versiones -->
+<div class="modal-overlay hidden" id="historyModalOverlay">
+  <div class="modal wide">
+    <h3>Historial de versiones</h3>
+    <p class="hint">Checkpoints automáticos de esta vista (general o subproyecto). Restaurar guarda antes el estado actual, así que también es reversible.</p>
+    <div id="historyList"></div>
+    <div class="modal-actions">
+      <button id="btnCloseHistory" class="primary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de filtro de secciones -->
+<div class="modal-overlay hidden" id="sectionsFilterModalOverlay">
+  <div class="modal">
+    <h3>Secciones visibles</h3>
+    <p class="hint">Desmarca una sección para ocultarla del diagrama activo (solo afecta a la vista, no borra nada del texto).</p>
+    <div id="sectionsFilterList"></div>
+    <div class="modal-actions">
+      <button id="btnSectionsFilterAll">Mostrar todas</button>
+      <button id="btnCloseSectionsFilter" class="primary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de resumen de camino crítico -->
+<div class="modal-overlay hidden" id="criticalModalOverlay">
+  <div class="modal wide">
+    <h3>Tareas críticas (crit)</h3>
+    <p class="hint">Agrupadas por vista (gantt general y subproyectos). Clic en una tarea para abrir su vista y resaltarla.</p>
+    <div id="criticalContent"></div>
+    <div class="modal-actions">
+      <button id="btnCloseCritical" class="primary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de plantillas -->
+<div class="modal-overlay hidden" id="templatesModalOverlay">
+  <div class="modal wide">
+    <h3>Nuevo proyecto desde plantilla</h3>
+    <p class="hint">Elige un punto de partida. Podrás editar todo el texto después.</p>
+    <ul class="nav-list" id="templatesList"></ul>
+    <div class="modal-actions">
+      <button id="btnCloseTemplates">Cancelar</button>
     </div>
   </div>
 </div>
@@ -733,10 +878,92 @@
   function currentTheme() {
     return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   }
+
+  // ---------------------------------------------------------------------
+  // Temas visuales nombrados para el diagrama (paleta de colores de las
+  // barras/secciones del gantt), independientes del toggle claro/oscuro.
+  // ---------------------------------------------------------------------
+  const DIAGRAM_THEME_KEY = "mdGanttViewer.diagramTheme";
+  const DIAGRAM_THEMES = {
+    default: { name: "Por defecto", vars: null },
+    ocean: {
+      name: "Océano",
+      vars: {
+        primaryColor: "#0ea5e9", primaryBorderColor: "#0369a1", primaryTextColor: "#04283e", lineColor: "#0369a1",
+        taskBkgColor: "#38bdf8", taskTextColor: "#04283e", taskTextOutsideColor: "#04283e", taskBorderColor: "#0284c7",
+        activeTaskBkgColor: "#0ea5e9", activeTaskBorderColor: "#0369a1",
+        doneTaskBkgColor: "#7dd3fc", doneTaskBorderColor: "#0284c7",
+        critBkgColor: "#f43f5e", critBorderColor: "#9f1239",
+        sectionBkgColor: "#e0f2fe", sectionBkgColor2: "#bae6fd", altSectionBkgColor: "#f0f9ff",
+        gridColor: "#7dd3fc", todayLineColor: "#f43f5e"
+      }
+    },
+    forest: {
+      name: "Bosque",
+      vars: {
+        primaryColor: "#22c55e", primaryBorderColor: "#166534", primaryTextColor: "#0b2e18", lineColor: "#166534",
+        taskBkgColor: "#4ade80", taskTextColor: "#0b2e18", taskTextOutsideColor: "#0b2e18", taskBorderColor: "#16a34a",
+        activeTaskBkgColor: "#22c55e", activeTaskBorderColor: "#166534",
+        doneTaskBkgColor: "#bbf7d0", doneTaskBorderColor: "#16a34a",
+        critBkgColor: "#ea580c", critBorderColor: "#7c2d12",
+        sectionBkgColor: "#dcfce7", sectionBkgColor2: "#bbf7d0", altSectionBkgColor: "#f0fdf4",
+        gridColor: "#86efac", todayLineColor: "#ea580c"
+      }
+    },
+    sunset: {
+      name: "Atardecer",
+      vars: {
+        primaryColor: "#f97316", primaryBorderColor: "#9a3412", primaryTextColor: "#431407", lineColor: "#9a3412",
+        taskBkgColor: "#fb923c", taskTextColor: "#431407", taskTextOutsideColor: "#431407", taskBorderColor: "#c2410c",
+        activeTaskBkgColor: "#f97316", activeTaskBorderColor: "#9a3412",
+        doneTaskBkgColor: "#fed7aa", doneTaskBorderColor: "#c2410c",
+        critBkgColor: "#dc2626", critBorderColor: "#7f1d1d",
+        sectionBkgColor: "#ffedd5", sectionBkgColor2: "#fed7aa", altSectionBkgColor: "#fff7ed",
+        gridColor: "#fdba74", todayLineColor: "#dc2626"
+      }
+    },
+    mono: {
+      name: "Monocromo",
+      vars: {
+        primaryColor: "#64748b", primaryBorderColor: "#1e293b", primaryTextColor: "#0f172a", lineColor: "#1e293b",
+        taskBkgColor: "#94a3b8", taskTextColor: "#0f172a", taskTextOutsideColor: "#0f172a", taskBorderColor: "#475569",
+        activeTaskBkgColor: "#334155", activeTaskBorderColor: "#0f172a",
+        doneTaskBkgColor: "#cbd5e1", doneTaskBorderColor: "#64748b",
+        critBkgColor: "#0f172a", critBorderColor: "#000000",
+        sectionBkgColor: "#e2e8f0", sectionBkgColor2: "#cbd5e1", altSectionBkgColor: "#f1f5f9",
+        gridColor: "#cbd5e1", todayLineColor: "#0f172a"
+      }
+    }
+  };
+  let currentDiagramTheme = localStorage.getItem(DIAGRAM_THEME_KEY) || "default";
+
   function mermaidInit() {
-    mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: currentTheme() === "dark" ? "dark" : "default" });
+    const chosen = DIAGRAM_THEMES[currentDiagramTheme] || DIAGRAM_THEMES.default;
+    const opts = { startOnLoad: false, securityLevel: "loose", theme: chosen.vars ? "base" : (currentTheme() === "dark" ? "dark" : "default") };
+    if (chosen.vars) opts.themeVariables = chosen.vars;
+    mermaid.initialize(opts);
   }
   mermaidInit();
+
+  function setDiagramTheme(key) {
+    if (!DIAGRAM_THEMES[key]) return;
+    currentDiagramTheme = key;
+    localStorage.setItem(DIAGRAM_THEME_KEY, key);
+    mermaidInit();
+    renderPreview();
+  }
+
+  (function initDiagramThemeSelect() {
+    const sel = document.getElementById("diagramThemeSel");
+    Object.keys(DIAGRAM_THEMES).forEach(key => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = DIAGRAM_THEMES[key].name;
+      if (key === currentDiagramTheme) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", () => setDiagramTheme(sel.value));
+  })();
 
   // ---------------------------------------------------------------------
   // State / storage
@@ -772,6 +999,76 @@
       "    Subtarea 1 :sub1, 2026-01-01, 3d"
     ].join("\n");
   }
+
+  // ---------------------------------------------------------------------
+  // Plantillas predefinidas
+  // ---------------------------------------------------------------------
+  const GANTT_TEMPLATES = [
+    {
+      key: "blank",
+      name: "En blanco",
+      desc: "Una sola sección con una tarea de ejemplo, para arrancar de cero.",
+      build: title => defaultGeneralTemplate(title)
+    },
+    {
+      key: "software",
+      name: "Desarrollo de software",
+      desc: "Planificación, desarrollo, pruebas y lanzamiento.",
+      build: title => [
+        "gantt",
+        "    title " + title,
+        "    dateFormat YYYY-MM-DD",
+        "    section Planificación",
+        "    Levantamiento de requisitos :done, req, 2026-01-01, 5d",
+        "    Diseño técnico :active, design, after req, 5d",
+        "    section Desarrollo",
+        "    Backend :be, after design, 15d",
+        "    Frontend :fe, after design, 15d",
+        "    section Pruebas",
+        "    QA / pruebas :crit, qa, after be, 5d",
+        "    section Lanzamiento",
+        "    Despliegue a producción :crit, milestone, deploy, after qa, 0d"
+      ].join("\n")
+    },
+    {
+      key: "marketing",
+      name: "Lanzamiento de marketing",
+      desc: "Investigación, contenido, campaña y análisis de resultados.",
+      build: title => [
+        "gantt",
+        "    title " + title,
+        "    dateFormat YYYY-MM-DD",
+        "    section Investigación",
+        "    Análisis de mercado :done, market, 2026-01-01, 4d",
+        "    section Contenido",
+        "    Creación de piezas :active, content, after market, 8d",
+        "    section Campaña",
+        "    Lanzamiento de campaña :crit, launch, after content, 3d",
+        "    Campaña activa :run, after launch, 14d",
+        "    section Análisis",
+        "    Reporte de resultados :report, after run, 3d"
+      ].join("\n")
+    },
+    {
+      key: "event",
+      name: "Organización de evento",
+      desc: "Planificación, logística, promoción y día del evento.",
+      build: title => [
+        "gantt",
+        "    title " + title,
+        "    dateFormat YYYY-MM-DD",
+        "    section Planificación",
+        "    Definir fecha y lugar :done, venue, 2026-01-01, 5d",
+        "    Presupuesto :active, budget, after venue, 3d",
+        "    section Logística",
+        "    Contratar proveedores :logistics, after budget, 10d",
+        "    section Promoción",
+        "    Difusión y venta de entradas :promo, after budget, 20d",
+        "    section Evento",
+        "    Día del evento :crit, milestone, dayof, after logistics, 0d"
+      ].join("\n")
+    }
+  ];
 
   function seedSampleProject(state) {
     const projectId = uid();
@@ -985,6 +1282,10 @@
   // Rendering
   // ---------------------------------------------------------------------
   let renderSeq = 0;
+  // Capturado una sola vez: mermaid.render() reemplaza innerHTML de #preview
+  // en cada render, así que esta capa de post-its se re-inserta después de
+  // cada renderizado en vez de recrearse (perdería los listeners de arrastre).
+  const notesLayerEl = document.getElementById("notesLayer");
 
   function buildRenderableSource(project) {
     let src = project.general.content;
@@ -1060,7 +1361,7 @@
     const subId = getCurrentSubprojectId();
     const isGeneral = !subId;
     const rawText = isGeneral ? project.general.content : (project.subprojects[subId] ? project.subprojects[subId].content : "");
-    const sourceForRender = isGeneral ? buildRenderableSource(project) : rawText;
+    const sourceForRender = filterHiddenSectionsFromContent(isGeneral ? buildRenderableSource(project) : rawText, hiddenSections);
 
     const mySeq = ++renderSeq;
     try {
@@ -1068,6 +1369,7 @@
       const { svg, bindFunctions } = await mermaid.render(renderId, sourceForRender);
       if (mySeq !== renderSeq) return; // a newer render started, discard this result
       previewEl.innerHTML = svg;
+      previewEl.appendChild(notesLayerEl);
       if (bindFunctions) bindFunctions(previewEl);
       if (isGeneral) attachSectionClickHandlers(previewEl, project);
       hideError();
@@ -1154,6 +1456,7 @@
     saveState();
     debouncedMarkSaved();
     debouncedRender();
+    debouncedSnapshot();
   });
 
   // ---------------------------------------------------------------------
@@ -1201,6 +1504,54 @@
     setCurrentSubprojectId(null);
     saveState();
     fullRefresh().then(selectTitleInEditor);
+  }
+
+  async function createProjectFromTemplate(templateKey) {
+    const template = GANTT_TEMPLATES.find(t => t.key === templateKey);
+    if (!template) return;
+    closeTemplatesModal();
+    const baseName = uniqueName(template.key === "blank" ? "Nuevo proyecto" : template.name, Object.values(state.projects).map(p => p.name));
+    const name = await showPrompt("Nombre del proyecto:", baseName);
+    if (!name) return;
+    const id = uid();
+    state.projects[id] = {
+      id, name: name.trim(),
+      createdAt: Date.now(), updatedAt: Date.now(),
+      general: { content: template.build(name.trim()), links: {} },
+      subprojects: {}
+    };
+    state.activeProjectId = id;
+    setCurrentSubprojectId(null);
+    saveState();
+    fullRefresh();
+  }
+
+  function openTemplatesModal() {
+    const list = document.getElementById("templatesList");
+    list.innerHTML = "";
+    GANTT_TEMPLATES.forEach(t => {
+      const li = document.createElement("li");
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "name";
+      const strong = document.createElement("strong");
+      strong.textContent = t.name;
+      nameSpan.appendChild(strong);
+      nameSpan.appendChild(document.createElement("br"));
+      const small = document.createElement("small");
+      small.style.color = "var(--text-dim)";
+      small.textContent = t.desc;
+      nameSpan.appendChild(small);
+      li.appendChild(nameSpan);
+      li.style.height = "auto";
+      li.style.padding = "8px";
+      li.addEventListener("click", () => createProjectFromTemplate(t.key));
+      list.appendChild(li);
+    });
+    document.getElementById("templatesModalOverlay").classList.remove("hidden");
+  }
+
+  function closeTemplatesModal() {
+    document.getElementById("templatesModalOverlay").classList.add("hidden");
   }
 
   async function renameProject() {
@@ -1414,6 +1765,203 @@
   }
 
   // ---------------------------------------------------------------------
+  // Resumen de camino crítico
+  // ---------------------------------------------------------------------
+  function getCriticalGroups(project) {
+    const groups = [];
+    function collect(viewName, subId, content) {
+      const doc = resolveGanttDoc(parseGanttDoc(content));
+      const crit = doc.tasks.filter(t => t.flags.includes("crit"));
+      if (crit.length) groups.push({ viewName, subId, tasks: crit });
+    }
+    collect("Gantt general", null, project.general.content);
+    Object.values(project.subprojects).forEach(sub => collect(sub.name, sub.id, sub.content));
+    return groups;
+  }
+
+  function openCriticalModal() {
+    const project = getActiveProject();
+    const content = document.getElementById("criticalContent");
+    content.innerHTML = "";
+    if (!project) {
+      content.textContent = "Ningún proyecto activo.";
+    } else {
+      const groups = getCriticalGroups(project);
+      if (!groups.length) {
+        content.textContent = "No hay tareas marcadas como \"crit\" en este proyecto.";
+      } else {
+        groups.forEach(g => {
+          const h = document.createElement("h4");
+          h.style.margin = "12px 0 4px";
+          h.style.fontSize = "13px";
+          h.textContent = g.viewName;
+          content.appendChild(h);
+          const ul = document.createElement("ul");
+          ul.className = "nav-list";
+          g.tasks.forEach(t => {
+            const li = document.createElement("li");
+            const name = document.createElement("span");
+            name.className = "name";
+            const dates = t.resolved && t.resolved.ok
+              ? " — " + fmtISO(t.resolved.start) + " → " + fmtISO(addDays(t.resolved.endEx, -1))
+              : " — (fecha no resuelta)";
+            name.textContent = t.label + dates;
+            li.appendChild(name);
+            li.addEventListener("click", async () => {
+              if (g.subId) await openSubproject(project.id, g.subId);
+              else await openGeneral(project.id);
+              closeCriticalModal();
+              if (previewMode === "interactive") pulseInteractiveRow(t.label);
+              else pulseTextMatching(document.getElementById("preview"), t.label);
+            });
+            ul.appendChild(li);
+          });
+          content.appendChild(ul);
+        });
+      }
+    }
+    document.getElementById("criticalModalOverlay").classList.remove("hidden");
+  }
+
+  function closeCriticalModal() {
+    document.getElementById("criticalModalOverlay").classList.add("hidden");
+  }
+
+  // ---------------------------------------------------------------------
+  // Filtro de secciones visibles
+  // ---------------------------------------------------------------------
+  function currentDiagramSectionNames() {
+    return extractGanttItems(getCurrentContent()).sections;
+  }
+
+  function rerenderCurrentView() {
+    if (previewMode === "interactive") renderInteractiveView();
+    else renderPreview();
+  }
+
+  function openSectionsFilterModal() {
+    const list = document.getElementById("sectionsFilterList");
+    list.innerHTML = "";
+    const names = currentDiagramSectionNames();
+    if (!names.length) {
+      list.textContent = "El diagrama activo no tiene secciones.";
+    } else {
+      names.forEach(name => {
+        const label = document.createElement("label");
+        label.className = "chk-mini";
+        label.style.padding = "4px 0";
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.checked = !hiddenSections.has(name);
+        chk.addEventListener("change", () => {
+          if (chk.checked) hiddenSections.delete(name);
+          else hiddenSections.add(name);
+          rerenderCurrentView();
+        });
+        label.appendChild(chk);
+        label.appendChild(document.createTextNode(name));
+        list.appendChild(label);
+        list.appendChild(document.createElement("br"));
+      });
+    }
+    document.getElementById("sectionsFilterModalOverlay").classList.remove("hidden");
+  }
+
+  function closeSectionsFilterModal() {
+    document.getElementById("sectionsFilterModalOverlay").classList.add("hidden");
+  }
+
+  // ---------------------------------------------------------------------
+  // Historial de versiones (checkpoints incrementales en localStorage)
+  // ---------------------------------------------------------------------
+  const HISTORY_LIMIT = 30;
+
+  function getHistoryTarget() {
+    const project = getActiveProject();
+    if (!project) return null;
+    const subId = getCurrentSubprojectId();
+    return (subId && project.subprojects[subId]) ? project.subprojects[subId] : project.general;
+  }
+
+  function recordHistorySnapshot() {
+    const target = getHistoryTarget();
+    if (!target) return;
+    if (!Array.isArray(target.history)) target.history = [];
+    const content = target.content;
+    const last = target.history[target.history.length - 1];
+    if (last && last.content === content) return;
+    target.history.push({ content, savedAt: Date.now() });
+    if (target.history.length > HISTORY_LIMIT) target.history.splice(0, target.history.length - HISTORY_LIMIT);
+    saveState();
+  }
+
+  const debouncedSnapshot = debounce(recordHistorySnapshot, 1500);
+
+  function fmtDateTime(ts) {
+    return new Date(ts).toLocaleString();
+  }
+
+  function historySnippet(content) {
+    const firstTaskLine = (content || "").split("\n").find(l => l.includes(":") && !/^\s*(gantt|title|dateFormat)/i.test(l));
+    const line = (firstTaskLine || content || "").trim();
+    return line.length > 70 ? line.slice(0, 70) + "…" : line;
+  }
+
+  function openHistoryModal() {
+    const target = getHistoryTarget();
+    const list = document.getElementById("historyList");
+    list.innerHTML = "";
+    const history = (target && target.history) || [];
+    if (!history.length) {
+      list.textContent = "Todavía no hay checkpoints guardados para esta vista.";
+    } else {
+      history.slice().reverse().forEach(entry => {
+        const row = document.createElement("div");
+        row.className = "gtl-row";
+        row.style.height = "auto";
+        row.style.padding = "8px";
+        const info = document.createElement("span");
+        info.className = "gtl-name";
+        const strong = document.createElement("strong");
+        strong.textContent = fmtDateTime(entry.savedAt);
+        info.appendChild(strong);
+        info.appendChild(document.createElement("br"));
+        const small = document.createElement("small");
+        small.style.color = "var(--text-dim)";
+        small.textContent = historySnippet(entry.content);
+        info.appendChild(small);
+        row.appendChild(info);
+        const btn = document.createElement("button");
+        btn.className = "tbtn-mini";
+        btn.textContent = "Restaurar";
+        btn.addEventListener("click", () => restoreHistoryEntry(entry));
+        row.appendChild(btn);
+        list.appendChild(row);
+      });
+    }
+    document.getElementById("historyModalOverlay").classList.remove("hidden");
+  }
+
+  function closeHistoryModal() {
+    document.getElementById("historyModalOverlay").classList.add("hidden");
+  }
+
+  function restoreHistoryEntry(entry) {
+    const target = getHistoryTarget();
+    const project = getActiveProject();
+    if (!target || !project) return;
+    recordHistorySnapshot(); // conserva el estado actual antes de sobrescribirlo
+    target.content = entry.content;
+    target.updatedAt = Date.now();
+    project.updatedAt = Date.now();
+    saveState();
+    closeHistoryModal();
+    loadEditorForCurrentView();
+    renderSidebar();
+    rerenderCurrentView();
+  }
+
+  // ---------------------------------------------------------------------
   // Import / export
   // ---------------------------------------------------------------------
   function downloadTextFile(filename, content, mime) {
@@ -1443,6 +1991,74 @@
     const content = isGeneral ? project.general.content : project.subprojects[subId].content;
     const md = "# " + name + "\n\n```mermaid\n" + content + "\n```\n";
     downloadTextFile(slugify(name) + ".md", md);
+  }
+
+  // Renderiza el diagrama activo (respetando los "click" del gantt general)
+  // a un SVG standalone, independiente del modo de vista previa actual.
+  async function renderCurrentToSvgString() {
+    const project = getActiveProject();
+    if (!project) return null;
+    const subId = getCurrentSubprojectId();
+    const isGeneral = !subId;
+    const rawText = isGeneral ? project.general.content : (project.subprojects[subId] ? project.subprojects[subId].content : "");
+    const sourceForRender = filterHiddenSectionsFromContent(isGeneral ? buildRenderableSource(project) : rawText, hiddenSections);
+    const { svg } = await mermaid.render("mdgantt-imgexport-" + Date.now(), sourceForRender);
+    return svg;
+  }
+
+  function currentExportBaseName() {
+    const project = getActiveProject();
+    const subId = getCurrentSubprojectId();
+    const name = !subId ? project.name + " (General)" : project.subprojects[subId].name;
+    return slugify(name);
+  }
+
+  async function exportCurrentSvg() {
+    const project = getActiveProject();
+    if (!project) return;
+    const svg = await renderCurrentToSvgString();
+    if (!svg) return;
+    downloadTextFile(currentExportBaseName() + ".svg", svg, "image/svg+xml");
+  }
+
+  async function exportCurrentPng() {
+    const project = getActiveProject();
+    if (!project) return;
+    const svg = await renderCurrentToSvgString();
+    if (!svg) return;
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svg, "image/svg+xml");
+    const svgEl = svgDoc.documentElement;
+    const viewBox = (svgEl.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+    const width = parseFloat(svgEl.getAttribute("width")) || viewBox[2] || 1000;
+    const height = parseFloat(svgEl.getAttribute("height")) || viewBox[3] || 600;
+    const scale = 2; // más nitidez que 1:1 en pantallas hi-dpi
+    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+      const bg = getComputedStyle(document.documentElement).getPropertyValue("--panel-bg").trim();
+      ctx.fillStyle = bg || "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = currentExportBaseName() + ".png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }, "image/png");
+    };
+    img.onerror = () => showAlert("Error al exportar PNG", "No se pudo rasterizar el SVG del diagrama.");
+    img.src = url;
   }
 
   function extractFirstMermaidBlock(text) {
@@ -1684,8 +2300,74 @@
       svg.setAttribute("height", baseH * zoomLevel);
     }
     zoomLabel.textContent = Math.round(zoomLevel * 100) + "%";
+    updateMinimap();
+    renderNotes();
   }
   function resetZoom() { zoomLevel = 1; applyZoom(); }
+
+  // ---------------------------------------------------------------------
+  // Minimapa (solo vista Mermaid): miniatura + rectángulo de viewport
+  // ---------------------------------------------------------------------
+  const MINIMAP_KEY = "mdGanttViewer.minimapEnabled";
+  let minimapEnabled = localStorage.getItem(MINIMAP_KEY) !== "0";
+  const minimapEl = document.getElementById("minimap");
+  const minimapContentEl = document.getElementById("minimapContent");
+  const minimapViewportEl = document.getElementById("minimapViewport");
+  const btnMinimapToggle = document.getElementById("btnMinimapToggle");
+
+  function updateMinimapToggleUI() {
+    btnMinimapToggle.classList.toggle("active", minimapEnabled);
+    btnMinimapToggle.style.opacity = minimapEnabled ? "1" : ".5";
+  }
+
+  function updateMinimap() {
+    if (previewMode !== "mermaid" || !minimapEnabled) { minimapEl.classList.add("hidden"); return; }
+    const svg = previewEl.querySelector("svg");
+    const overflowsX = previewWrap.scrollWidth > previewWrap.clientWidth + 40;
+    const overflowsY = previewWrap.scrollHeight > previewWrap.clientHeight + 40;
+    if (!svg || (!overflowsX && !overflowsY)) { minimapEl.classList.add("hidden"); return; }
+    minimapEl.classList.remove("hidden");
+    if (minimapContentEl.dataset.srcFor !== renderSeq + "") {
+      const clone = svg.cloneNode(true);
+      clone.removeAttribute("id");
+      clone.removeAttribute("width");
+      clone.removeAttribute("height");
+      clone.setAttribute("preserveAspectRatio", "xMinYMin meet");
+      minimapContentEl.innerHTML = "";
+      minimapContentEl.appendChild(clone);
+      minimapContentEl.dataset.srcFor = renderSeq + "";
+    }
+    const totalW = previewWrap.scrollWidth || 1;
+    const totalH = previewWrap.scrollHeight || 1;
+    const mmW = minimapEl.clientWidth;
+    const mmH = minimapEl.clientHeight;
+    const vpLeft = Math.max(0, (previewWrap.scrollLeft / totalW) * mmW);
+    const vpTop = Math.max(0, (previewWrap.scrollTop / totalH) * mmH);
+    const vpW = Math.min(mmW - vpLeft, (previewWrap.clientWidth / totalW) * mmW);
+    const vpH = Math.min(mmH - vpTop, (previewWrap.clientHeight / totalH) * mmH);
+    minimapViewportEl.style.left = vpLeft + "px";
+    minimapViewportEl.style.top = vpTop + "px";
+    minimapViewportEl.style.width = Math.max(6, vpW) + "px";
+    minimapViewportEl.style.height = Math.max(6, vpH) + "px";
+  }
+
+  minimapEl.addEventListener("click", (e) => {
+    const rect = minimapEl.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+    previewWrap.scrollLeft = relX * previewWrap.scrollWidth - previewWrap.clientWidth / 2;
+    previewWrap.scrollTop = relY * previewWrap.scrollHeight - previewWrap.clientHeight / 2;
+    updateMinimap();
+  });
+  btnMinimapToggle.addEventListener("click", () => {
+    minimapEnabled = !minimapEnabled;
+    localStorage.setItem(MINIMAP_KEY, minimapEnabled ? "1" : "0");
+    updateMinimapToggleUI();
+    updateMinimap();
+  });
+  previewWrap.addEventListener("scroll", updateMinimap);
+  window.addEventListener("resize", updateMinimap);
+  updateMinimapToggleUI();
 
   document.getElementById("btnZoomIn").addEventListener("click", () => { zoomLevel = Math.min(3, zoomLevel + 0.15); applyZoom(); });
   document.getElementById("btnZoomOut").addEventListener("click", () => { zoomLevel = Math.max(0.25, zoomLevel - 0.15); applyZoom(); });
@@ -1710,6 +2392,177 @@
   });
   window.addEventListener("mouseup", () => {
     if (panState) { panState = null; previewWrap.classList.remove("panning"); }
+  });
+
+  // ---------------------------------------------------------------------
+  // Notas/post-its libres sobre el diagrama (vista Mermaid). Se guardan en
+  // el propio proyecto/subproyecto (campo `notes`, separado del texto
+  // Mermaid) con posición en coordenadas "base" (zoom 100%) para que se
+  // mantengan ancladas al mismo punto del diagrama al hacer zoom.
+  // ---------------------------------------------------------------------
+  const NOTE_COLORS = ["#fff59d", "#a5d6a7", "#90caf9", "#f48fb1", "#ffcc80"];
+  let noteDrag = null;
+
+  function getNotesArray() {
+    const target = getHistoryTarget();
+    if (!target) return null;
+    if (!Array.isArray(target.notes)) target.notes = [];
+    return target.notes;
+  }
+
+  function persistNotes() { saveState(); }
+  const debouncedPersistNotes = debounce(persistNotes, 500);
+
+  function buildNoteEl(note) {
+    const div = document.createElement("div");
+    div.className = "note-postit";
+    div.style.left = (note.baseX * zoomLevel) + "px";
+    div.style.top = (note.baseY * zoomLevel) + "px";
+    div.style.background = note.color || NOTE_COLORS[0];
+    // Evita que un clic/arrastre sobre la nota también dispare el paneo del
+    // diagrama (el listener de mousedown para pan vive en #preview-wrap).
+    div.addEventListener("mousedown", (e) => e.stopPropagation());
+
+    const header = document.createElement("div");
+    header.className = "note-postit-header";
+    const colors = document.createElement("div");
+    colors.className = "note-postit-colors";
+    NOTE_COLORS.forEach(c => {
+      const dot = document.createElement("span");
+      dot.className = "note-postit-color-dot";
+      dot.style.background = c;
+      dot.title = "Cambiar color";
+      dot.addEventListener("click", (e) => {
+        e.stopPropagation();
+        note.color = c;
+        div.style.background = c;
+        persistNotes();
+      });
+      colors.appendChild(dot);
+    });
+    header.appendChild(colors);
+    const del = document.createElement("button");
+    del.className = "note-del";
+    del.textContent = "✕";
+    del.title = "Eliminar nota";
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const notes = getNotesArray();
+      if (!notes) return;
+      const idx = notes.indexOf(note);
+      if (idx >= 0) notes.splice(idx, 1);
+      persistNotes();
+      renderNotes();
+    });
+    header.appendChild(del);
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".note-postit-color-dot") || e.target.closest(".note-del")) return;
+      noteDrag = { note, div, startX: e.clientX, startY: e.clientY, origLeft: parseFloat(div.style.left) || 0, origTop: parseFloat(div.style.top) || 0 };
+      e.preventDefault();
+    });
+    div.appendChild(header);
+
+    const ta = document.createElement("textarea");
+    ta.value = note.text || "";
+    ta.rows = 3;
+    ta.placeholder = "Escribe una nota...";
+    ta.addEventListener("input", () => { note.text = ta.value; debouncedPersistNotes(); });
+    div.appendChild(ta);
+
+    return div;
+  }
+
+  window.addEventListener("mousemove", (e) => {
+    if (!noteDrag) return;
+    const dx = e.clientX - noteDrag.startX;
+    const dy = e.clientY - noteDrag.startY;
+    noteDrag.div.style.left = (noteDrag.origLeft + dx) + "px";
+    noteDrag.div.style.top = (noteDrag.origTop + dy) + "px";
+  });
+  window.addEventListener("mouseup", () => {
+    if (!noteDrag) return;
+    noteDrag.note.baseX = parseFloat(noteDrag.div.style.left) / zoomLevel;
+    noteDrag.note.baseY = parseFloat(noteDrag.div.style.top) / zoomLevel;
+    noteDrag = null;
+    persistNotes();
+  });
+
+  function renderNotes() {
+    notesLayerEl.innerHTML = "";
+    if (previewMode !== "mermaid") return;
+    const notes = getNotesArray();
+    if (!notes) return;
+    notes.forEach(note => notesLayerEl.appendChild(buildNoteEl(note)));
+  }
+
+  function addNoteAtCenter() {
+    const notes = getNotesArray();
+    if (!notes) return;
+    const baseX = Math.max(0, (previewWrap.scrollLeft + previewWrap.clientWidth / 2 - 85) / zoomLevel);
+    const baseY = Math.max(0, (previewWrap.scrollTop + previewWrap.clientHeight / 2 - 45) / zoomLevel);
+    notes.push({ id: uid(), baseX, baseY, text: "", color: NOTE_COLORS[0] });
+    persistNotes();
+    renderNotes();
+  }
+  document.getElementById("btnAddNote").addEventListener("click", addNoteAtCenter);
+
+  // ---------------------------------------------------------------------
+  // Vistas guardadas (bookmarks de zoom/scroll) — 4 slots por vista (general
+  // o subproyecto), persistidos en localStorage. Clic: ir a la vista. Shift
+  // + clic: guardar la posición/zoom actuales en ese slot.
+  // ---------------------------------------------------------------------
+  const VIEW_BOOKMARKS_KEY = "mdGanttViewer.viewBookmarks";
+
+  function loadBookmarksStore() {
+    try { return JSON.parse(localStorage.getItem(VIEW_BOOKMARKS_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveBookmarksStore(store) {
+    localStorage.setItem(VIEW_BOOKMARKS_KEY, JSON.stringify(store));
+  }
+  function bookmarkScopeKey() {
+    const project = getActiveProject();
+    if (!project) return null;
+    return project.id + "::" + (getCurrentSubprojectId() || "general");
+  }
+  function getBookmarkSlots() {
+    const key = bookmarkScopeKey();
+    if (!key) return [null, null, null, null];
+    const slots = loadBookmarksStore()[key];
+    return slots || [null, null, null, null];
+  }
+  function setBookmarkSlot(idx, value) {
+    const key = bookmarkScopeKey();
+    if (!key) return;
+    const store = loadBookmarksStore();
+    const slots = store[key] || [null, null, null, null];
+    slots[idx] = value;
+    store[key] = slots;
+    saveBookmarksStore(store);
+  }
+  function renderBookmarkButtons() {
+    const slots = getBookmarkSlots();
+    document.querySelectorAll(".bookmark-slot").forEach(btn => {
+      const idx = parseInt(btn.dataset.slot, 10);
+      btn.classList.toggle("has-data", !!slots[idx]);
+    });
+  }
+  document.querySelectorAll(".bookmark-slot").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = parseInt(btn.dataset.slot, 10);
+      if (!getActiveProject()) return;
+      if (e.shiftKey) {
+        setBookmarkSlot(idx, { zoom: zoomLevel, scrollLeft: previewWrap.scrollLeft, scrollTop: previewWrap.scrollTop });
+        renderBookmarkButtons();
+        showToast("Vista guardada en el slot " + (idx + 1) + ".", null);
+      } else {
+        const v = getBookmarkSlots()[idx];
+        if (!v) { showToast("El slot " + (idx + 1) + " está vacío. Shift+clic para guardarlo.", null); return; }
+        zoomLevel = v.zoom;
+        applyZoom();
+        previewWrap.scrollLeft = v.scrollLeft;
+        previewWrap.scrollTop = v.scrollTop;
+      }
+    });
   });
 
   // ---------------------------------------------------------------------
@@ -1800,6 +2653,7 @@
     markSaving();
     saveState();
     debouncedMarkSaved();
+    recordHistorySnapshot();
     loadEditorForCurrentView();
     renderPreview();
     renderSidebar();
@@ -1917,6 +2771,24 @@
   })();
 
   // ---------------------------------------------------------------------
+  // Modo presentación
+  // ---------------------------------------------------------------------
+  let presentationMode = false;
+  function setPresentationMode(on) {
+    presentationMode = on;
+    document.body.classList.toggle("presentation-mode", on);
+    document.getElementById("btnExitPresentation").classList.toggle("hidden", !on);
+    if (!on) cm.refresh();
+    updateMinimap();
+  }
+  function togglePresentationMode() {
+    if (!getActiveProject()) return;
+    setPresentationMode(!presentationMode);
+  }
+  document.getElementById("btnPresentation").addEventListener("click", togglePresentationMode);
+  document.getElementById("btnExitPresentation").addEventListener("click", () => setPresentationMode(false));
+
+  // ---------------------------------------------------------------------
   // UI rendering: topbar, sidebar, breadcrumb
   // ---------------------------------------------------------------------
   function renderTopbar() {
@@ -1935,7 +2807,12 @@
     document.getElementById("btnDeleteProject").disabled = !hasProject;
     document.getElementById("btnDuplicateProject").disabled = !hasProject;
     document.getElementById("btnLinks").disabled = !hasProject;
+    document.getElementById("btnCritical").disabled = !hasProject;
+    document.getElementById("btnSectionsFilter").disabled = !hasProject;
+    document.getElementById("btnAddNote").disabled = !hasProject;
     document.getElementById("btnExportMd").disabled = !hasProject;
+    document.getElementById("btnExportSvg").disabled = !hasProject;
+    document.getElementById("btnExportPng").disabled = !hasProject;
     document.getElementById("btnImportMd").disabled = !hasProject;
     searchInput.disabled = !hasProject;
   }
@@ -2050,6 +2927,7 @@
     if (!project) { label.textContent = "Editor (Mermaid)"; }
     else { label.textContent = "Editor (Mermaid) — " + (subId && project.subprojects[subId] ? project.subprojects[subId].name : "General"); }
     document.getElementById("btnDuplicateSubproject").disabled = !project || !subId;
+    document.getElementById("btnHistory").disabled = !project;
   }
 
   function renderEmptyState() {
@@ -2073,6 +2951,7 @@
     // para que Frappe posicione el chart en la primera tarea del nuevo diagrama.
     interactiveScroll = null;
     updatePreviewModeUI();
+    renderBookmarkButtons();
     cm.refresh();
     await renderPreview();
   }
@@ -2082,11 +2961,25 @@
   // ---------------------------------------------------------------------
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      if (presentationMode) { setPresentationMode(false); e.preventDefault(); return; }
       if (!genModalOverlay.classList.contains("hidden")) { genModalCancel.click(); e.preventDefault(); return; }
       if (!taskModalOverlay.classList.contains("hidden")) { closeTaskModal(); e.preventDefault(); return; }
       if (!document.getElementById("linksModalOverlay").classList.contains("hidden")) { closeLinksModal(); e.preventDefault(); return; }
+      if (!document.getElementById("templatesModalOverlay").classList.contains("hidden")) { closeTemplatesModal(); e.preventDefault(); return; }
+      if (!document.getElementById("criticalModalOverlay").classList.contains("hidden")) { closeCriticalModal(); e.preventDefault(); return; }
+      if (!document.getElementById("sectionsFilterModalOverlay").classList.contains("hidden")) { closeSectionsFilterModal(); e.preventDefault(); return; }
+      if (!document.getElementById("historyModalOverlay").classList.contains("hidden")) { closeHistoryModal(); e.preventDefault(); return; }
       if (!searchResultsEl.classList.contains("hidden")) { closeSearchResults(); e.preventDefault(); return; }
       return;
+    }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "p") {
+      const tag = (e.target.tagName || "").toLowerCase();
+      const inEditableContext = tag === "input" || tag === "textarea" || tag === "select" || (e.target.closest && e.target.closest(".CodeMirror")) || e.target.isContentEditable;
+      if (!inEditableContext) {
+        e.preventDefault();
+        togglePresentationMode();
+        return;
+      }
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
@@ -2109,6 +3002,11 @@
     fullRefresh();
   });
   document.getElementById("btnNewProject").addEventListener("click", createProject);
+  document.getElementById("btnNewFromTemplate").addEventListener("click", openTemplatesModal);
+  document.getElementById("btnCloseTemplates").addEventListener("click", closeTemplatesModal);
+  document.getElementById("templatesModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "templatesModalOverlay") closeTemplatesModal();
+  });
   document.getElementById("btnRenameProject").addEventListener("click", renameProject);
   document.getElementById("btnDeleteProject").addEventListener("click", deleteProject);
   document.getElementById("btnDuplicateProject").addEventListener("click", duplicateProject);
@@ -2122,7 +3020,32 @@
     if (e.target.id === "linksModalOverlay") closeLinksModal();
   });
 
+  document.getElementById("btnCritical").addEventListener("click", openCriticalModal);
+  document.getElementById("btnCloseCritical").addEventListener("click", closeCriticalModal);
+  document.getElementById("criticalModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "criticalModalOverlay") closeCriticalModal();
+  });
+
+  document.getElementById("btnHistory").addEventListener("click", openHistoryModal);
+  document.getElementById("btnCloseHistory").addEventListener("click", closeHistoryModal);
+  document.getElementById("historyModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "historyModalOverlay") closeHistoryModal();
+  });
+
+  document.getElementById("btnSectionsFilter").addEventListener("click", openSectionsFilterModal);
+  document.getElementById("btnCloseSectionsFilter").addEventListener("click", closeSectionsFilterModal);
+  document.getElementById("btnSectionsFilterAll").addEventListener("click", () => {
+    hiddenSections.clear();
+    rerenderCurrentView();
+    openSectionsFilterModal();
+  });
+  document.getElementById("sectionsFilterModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "sectionsFilterModalOverlay") closeSectionsFilterModal();
+  });
+
   document.getElementById("btnExportMd").addEventListener("click", exportCurrentMd);
+  document.getElementById("btnExportSvg").addEventListener("click", exportCurrentSvg);
+  document.getElementById("btnExportPng").addEventListener("click", exportCurrentPng);
   document.getElementById("btnImportMd").addEventListener("click", () => document.getElementById("fileImportMd").click());
   document.getElementById("fileImportMd").addEventListener("change", (e) => {
     if (e.target.files[0]) importSingleMd(e.target.files[0]);
@@ -2161,6 +3084,30 @@
   let lastSnapshot = null;
   // Nombres de sección colapsados (una fila de resumen en lugar de sus tareas).
   const collapsedSections = new Set();
+  // Nombres de sección ocultos por el filtro (no aparecen en ninguna vista).
+  // Solo afecta al renderizado; el texto Mermaid del proyecto no se toca.
+  const hiddenSections = new Set();
+
+  // Elimina del texto los bloques "section X ... (hasta la siguiente section)"
+  // cuyo nombre esté en `hidden`, para pasarlo a mermaid.render sin tocar el
+  // contenido real guardado en el proyecto.
+  function filterHiddenSectionsFromContent(content, hidden) {
+    if (!hidden.size) return content;
+    const lines = (content || "").split("\n");
+    const out = [];
+    let skipping = false;
+    for (const raw of lines) {
+      const m = raw.trim().match(/^section\s+(.+)$/i);
+      if (m) {
+        skipping = hidden.has(m[1].trim());
+        if (skipping) continue;
+      } else if (skipping) {
+        continue;
+      }
+      out.push(raw);
+    }
+    return out.join("\n");
+  }
 
   // [gantt-core-start] — funciones puras (sin DOM), testeables aparte
 
@@ -2472,8 +3419,11 @@
     const rowIdByTaskId = {};
     let curCollapsed = false;
     let curSectionRow = null;
+    let curHidden = false;
     doc.items.forEach((item, i) => {
       if (item.type === "section") {
+        curHidden = hiddenSections.has(item.section.name);
+        if (curHidden) { curCollapsed = false; curSectionRow = null; return; }
         const collapsed = collapsedSections.has(item.section.name);
         curCollapsed = collapsed;
         // Estadísticas de la sección (hasta la siguiente): rango de fechas,
@@ -2520,6 +3470,7 @@
         rows.push(curSectionRow);
         return;
       }
+      if (curHidden) return;
       const t = item.task;
       const afterIds = t.startType === "after" ? t.timeTokens[0].replace(/^after\s+/i, "").trim().split(/\s+/) : [];
       if (curCollapsed) {
@@ -2852,6 +3803,7 @@
     markSaving();
     saveState();
     debouncedMarkSaved();
+    recordHistorySnapshot();
     setEditorContentPreserveView(newContent, flashLine);
     renderInteractiveView();
     showToast((notes || []).join(" "), lastSnapshot);
@@ -2966,6 +3918,8 @@
     document.getElementById("mermaidControls").classList.toggle("hidden", isInt);
     document.getElementById("modeBtnInteractive").classList.toggle("active", isInt);
     document.getElementById("modeBtnMermaid").classList.toggle("active", !isInt);
+    updateMinimap();
+    renderNotes();
   }
 
   document.getElementById("modeBtnInteractive").addEventListener("click", () => setPreviewMode("interactive"));
