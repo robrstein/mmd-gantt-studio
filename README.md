@@ -78,4 +78,4 @@ Abrir la versión publicada en [https://robrstein.github.io/mmd-gantt-sutdio/](h
 
 ## Licencia
 
-[MIT](./LICENSE)
+[GPL-3.0](./LICENSE)
